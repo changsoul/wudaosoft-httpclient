@@ -3,7 +3,7 @@
  * QQ:275100589
  */ 
  
-package com.wudaosoft.weixin.httpclient;
+package com.wudaosoft.net.httpclient;
 
 import java.io.File;
 import java.io.IOException;
@@ -80,11 +80,11 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 
 import com.alibaba.fastjson.JSONObject;
-import com.wudaosoft.weixin.utils.XmlReader;
+import com.wudaosoft.net.utils.XmlReader;
 
 /**
  * <p>微信HttpClient工具类 </p>
- * HttpClient版本:4.4.1
+ * HttpClient版本:4.5.2
  * @author Changsoul.Wu
  * @date 2014-3-29 下午6:10:49
  */
@@ -100,7 +100,7 @@ public class HttpClientUtils {
 	public static final String JSON_CONTENT_TYPE = "application/json; encoding=utf-8";
 	public static final String XML_CONTENT_TYPE = "application/xml; encoding=utf-8";
 	public static final String TEXT_PLAIN_CONTENT_TYPE = "text/plain; encoding=utf-8";
-	private static final int TIME_OUT = 10 * 1000;
+	private static final int TIME_OUT = 15 * 1000;
 	
 	private static PoolingHttpClientConnectionManager connManager = null;
 	private static CloseableHttpClient httpClient = null;

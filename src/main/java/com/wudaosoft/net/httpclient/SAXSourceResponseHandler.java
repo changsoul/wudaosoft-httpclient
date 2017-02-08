@@ -3,7 +3,7 @@
  * QQ:275100589
  */ 
  
-package com.wudaosoft.weixin.httpclient;
+package com.wudaosoft.net.httpclient;
 
 import java.io.IOException;
 import java.io.InputStream;
