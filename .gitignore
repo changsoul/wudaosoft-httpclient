@@ -1,6 +1,7 @@
 # IDE for Developer Tools Profiles
 /target/
 /bin/
+/logs/
 /.settings/
 /.classpath
 /.project
