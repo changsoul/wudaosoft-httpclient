@@ -16,6 +16,7 @@
 package com.wudaosoft.net.httpclient;
 
 import java.net.URL;
+import java.nio.charset.Charset;
 
 import org.apache.http.HttpHost;
 import org.apache.http.client.config.RequestConfig;
@@ -33,6 +34,8 @@ public interface HostConfig {
 	HttpHost getHost();
 
 	String getHostUrl();
+	
+	Charset getCharset();
 
 	RequestConfig getRequestConfig();
 

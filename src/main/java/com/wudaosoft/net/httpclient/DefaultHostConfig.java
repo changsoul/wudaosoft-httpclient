@@ -16,6 +16,7 @@
 package com.wudaosoft.net.httpclient;
 
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 
 import org.apache.http.HttpHost;
@@ -28,7 +29,7 @@ import org.apache.http.client.config.RequestConfig;
  */
 public abstract class DefaultHostConfig implements HostConfig {
 
-	private String userAgent = "Wudaosoft http tools/1.0";
+	private String userAgent = "Wudaosoft Http Tools/1.0";
 	private RequestConfig defaultRequestConfig;
 	
 	public DefaultHostConfig() {
@@ -69,6 +70,11 @@ public abstract class DefaultHostConfig implements HostConfig {
 	@Override
 	abstract public String getHostUrl();
 
+	@Override
+	public Charset getCharset() {
+		return null;
+	}
+
 	/* (non-Javadoc)
 	 * @see com.wudaosoft.traintickets.net.HostConfig#getRequestConfig()
 	 */
@@ -104,8 +110,7 @@ public abstract class DefaultHostConfig implements HostConfig {
 	@Override
 	public int getPoolSize() {
 		
-		return 150;
+		return 100;
 	}
-	
 	
 }

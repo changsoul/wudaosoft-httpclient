@@ -18,6 +18,7 @@ package com.wudaosoft.net.httpclient;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
 import java.nio.charset.CodingErrorAction;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
@@ -41,13 +42,14 @@ import org.apache.http.HttpRequest;
 import org.apache.http.HttpRequestInterceptor;
 import org.apache.http.HttpResponse;
 import org.apache.http.NameValuePair;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpUriRequest;
+import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.config.ConnectionConfig;
@@ -106,17 +108,21 @@ public class Request {
 	}
 
 	public static Request createDefault(HostConfig hostConfig) {
-		return new Request().setHostConfig(hostConfig).build();
+		return new Request().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
 	}
 
 	public static Request createDefaultWithNoRetry(HostConfig hostConfig) {
 		HttpRequestRetryHandler retryHandler1 = new DefaultHttpRequestRetryHandler(0, false);
-		return new Request().setHostConfig(hostConfig).setRetryHandler(retryHandler1).build();
+		return new Request().setHostConfig(hostConfig).setRetryHandler(retryHandler1).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
 	}
 
 	public Request setHostConfig(HostConfig hostConfig) {
 		this.hostConfig = hostConfig;
 		return this;
+	}
+
+	public HostConfig getHostConfig() {
+		return hostConfig;
 	}
 
 	public Request setSslcontext(SSLContext sslcontext) {
@@ -276,25 +282,98 @@ public class Request {
 		}
 	}
 
+	public String getString(final String suffixUrl) throws Exception {
+
+		return getString(suffixUrl, (Map<String, String>) null);
+	}
+
+	public String getString(final String suffixUrl, Map<String, String> params) throws Exception {
+
+		return getString(suffixUrl, params, null);
+	}
+
+	public String getString(final String suffixUrl, Map<String, String> params, HttpClientContext context)
+			throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return getString(this.hostConfig.getHostUrl(), suffixUrl, params, context);
+	}
+
+	public String getString(final String hostUrl, String urlSuffix) throws Exception {
+
+		return getString(hostUrl, urlSuffix, null);
+	}
+
 	public String getString(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
 
-		return get(hostUrl, urlSuffix, params, new StringResponseHandler());
+		return getString(hostUrl, urlSuffix, params, null);
+	}
+
+	public String getString(final String hostUrl, String urlSuffix, Map<String, String> params,
+			HttpClientContext context) throws Exception {
+
+		return get(hostUrl, urlSuffix, params, context, new StringResponseHandler());
+	}
+
+	public JSONObject getJson(final String suffixUrl) throws Exception {
+
+		return getJson(suffixUrl, (Map<String, String>) null);
+	}
+
+	public JSONObject getJson(final String suffixUrl, Map<String, String> params) throws Exception {
+
+		return getJson(suffixUrl, params, null);
+	}
+
+	public JSONObject getJson(final String suffixUrl, Map<String, String> params, HttpClientContext context)
+			throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return getJson(this.hostConfig.getHostUrl(), suffixUrl, params, context);
+	}
+
+	public JSONObject getJson(final String hostUrl, String urlSuffix) throws Exception {
+
+		return getJson(hostUrl, urlSuffix, null);
 	}
 
 	public JSONObject getJson(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
 
-		return get(hostUrl, urlSuffix, params, new JsonResponseHandler());
-	}
-
-	public SAXSource getXml(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, new SAXSourceResponseHandler());
+		return getJson(hostUrl, urlSuffix, params, null);
 	}
 
 	public JSONObject getJson(final String hostUrl, String urlSuffix, Map<String, String> params,
 			HttpClientContext context) throws Exception {
 
 		return get(hostUrl, urlSuffix, params, context, new JsonResponseHandler());
+	}
+
+	public SAXSource getXml(final String suffixUrl) throws Exception {
+
+		return getXml(suffixUrl, (Map<String, String>) null);
+	}
+
+	public SAXSource getXml(final String suffixUrl, Map<String, String> params) throws Exception {
+
+		return getXml(suffixUrl, params, null);
+	}
+
+	public SAXSource getXml(final String suffixUrl, Map<String, String> params, HttpClientContext context)
+			throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return getXml(this.hostConfig.getHostUrl(), suffixUrl, params, context);
+	}
+
+	public SAXSource getXml(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
+
+		return getXml(hostUrl, urlSuffix, params, null);
 	}
 
 	public SAXSource getXml(final String hostUrl, String urlSuffix, Map<String, String> params,
@@ -305,12 +384,7 @@ public class Request {
 
 	public JSONObject getJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
 
-		return get(hostUrl, urlSuffix, params, null, new JsonResponseHandler(), true);
-	}
-
-	public SAXSource getXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, null, new SAXSourceResponseHandler(), true);
+		return getJsonAjax(hostUrl, urlSuffix, params, null);
 	}
 
 	public JSONObject getJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params,
@@ -319,73 +393,79 @@ public class Request {
 		return get(hostUrl, urlSuffix, params, context, new JsonResponseHandler(), true);
 	}
 
+	public SAXSource getXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
+
+		return getXmlAjax(hostUrl, urlSuffix, params, null);
+	}
+
 	public SAXSource getXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params,
 			HttpClientContext context) throws Exception {
 
 		return get(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler(), true);
 	}
 
-	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params,
-			ResponseHandler<T> responseHandler) throws Exception {
+	public String postString(final String suffixUrl) throws Exception {
 
-		return post(hostUrl, urlSuffix, params, null, responseHandler, false);
+		return postString(suffixUrl, (Map<String, String>) null);
 	}
 
-	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
-			ResponseHandler<T> responseHandler) throws Exception {
+	public String postString(final String suffixUrl, Map<String, String> params) throws Exception {
 
-		return post(hostUrl, urlSuffix, params, context, responseHandler, false);
+		return postString(suffixUrl, params, null);
 	}
 
-	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
-			ResponseHandler<T> responseHandler, boolean isAjax) throws Exception {
+	public String postString(final String suffixUrl, Map<String, String> params, HttpClientContext context)
+			throws Exception {
 
-		Args.notEmpty(hostUrl, "hostUrl");
-		Args.notEmpty(urlSuffix, "urlSuffix");
-		Args.notNull(responseHandler, "responseHandler");
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
 
-		String url = buildReqUrl(hostUrl + urlSuffix, params);
+		return postString(this.hostConfig.getHostUrl(), suffixUrl, params, context);
+	}
 
-		HttpGet httpGet = new HttpGet(url);
+	public String postString(final String hostUrl, String urlSuffix) throws Exception {
 
-		if (context == null)
-			context = defaultHttpContext;
-
-		if (responseHandler instanceof JsonResponseHandler) {
-			setAcceptHeader(httpGet, MediaType.APPLICATION_JSON_VALUE);
-		} else if (responseHandler instanceof SAXSourceResponseHandler
-				|| responseHandler instanceof XmlResponseHandler) {
-			setAcceptHeader(httpGet, MediaType.APPLICATION_XML_VALUE);
-		} else {
-			setAcceptHeader(httpGet, MediaType.TEXT_PLAIN_VALUE);
-		}
-
-		if (isAjax) {
-			setAjaxHeader(httpGet, context);
-		}
-
-		T rs = getHttpClient().execute(httpGet, responseHandler, context);
-
-		if (log.isDebugEnabled()) {
-			log.debug(String.format("Get data from path:\"%s\". result: %s", url, rs));
-		}
-
-		return rs;
+		return postString(hostUrl, urlSuffix, null);
 	}
 
 	public String postString(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
 
-		return post(hostUrl, urlSuffix, params, new StringResponseHandler());
+		return postString(hostUrl, urlSuffix, params, null);
+	}
+
+	public String postString(final String hostUrl, String urlSuffix, Map<String, String> params,
+			HttpClientContext context) throws Exception {
+
+		return post(hostUrl, urlSuffix, params, context, new StringResponseHandler());
+	}
+
+	public JSONObject postJson(final String suffixUrl) throws Exception {
+
+		return postJson(suffixUrl, (Map<String, String>) null);
+	}
+
+	public JSONObject postJson(final String suffixUrl, Map<String, String> params) throws Exception {
+
+		return postJson(suffixUrl, params, null);
+	}
+
+	public JSONObject postJson(final String suffixUrl, Map<String, String> params, HttpClientContext context)
+			throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return postJson(this.hostConfig.getHostUrl(), suffixUrl, params, context);
+	}
+
+	public JSONObject postJson(final String hostUrl, String urlSuffix) throws Exception {
+
+		return postJson(hostUrl, urlSuffix, null);
 	}
 
 	public JSONObject postJson(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
 
-		return post(hostUrl, urlSuffix, params, new JsonResponseHandler());
-	}
-
-	public SAXSource postXml(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, new SAXSourceResponseHandler());
+		return postJson(hostUrl, urlSuffix, params, null);
 	}
 
 	public JSONObject postJson(final String hostUrl, String urlSuffix, Map<String, String> params,
@@ -394,21 +474,39 @@ public class Request {
 		return post(hostUrl, urlSuffix, params, context, new JsonResponseHandler());
 	}
 
+	public SAXSource postXml(final String suffixUrl) throws Exception {
+
+		return postXml(suffixUrl, (Map<String, String>) null);
+	}
+
+	public SAXSource postXml(final String suffixUrl, Map<String, String> params) throws Exception {
+
+		return postXml(suffixUrl, params, null);
+	}
+
+	public SAXSource postXml(final String suffixUrl, Map<String, String> params, HttpClientContext context)
+			throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return postXml(this.hostConfig.getHostUrl(), suffixUrl, params, context);
+	}
+
+	public SAXSource postXml(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
+
+		return postXml(hostUrl, urlSuffix, params, null);
+	}
+
 	public SAXSource postXml(final String hostUrl, String urlSuffix, Map<String, String> params,
 			HttpClientContext context) throws Exception {
 
 		return post(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler());
 	}
 
-	public JSONObject postJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params)
-			throws Exception {
+	public JSONObject postJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
 
-		return post(hostUrl, urlSuffix, params, null, new JsonResponseHandler(), true);
-	}
-
-	public SAXSource postXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, null, new SAXSourceResponseHandler(), true);
+		return postJsonAjax(hostUrl, urlSuffix, params, null);
 	}
 
 	public JSONObject postJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params,
@@ -417,38 +515,93 @@ public class Request {
 		return post(hostUrl, urlSuffix, params, context, new JsonResponseHandler(), true);
 	}
 
+	public SAXSource postXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
+
+		return postXmlAjax(hostUrl, urlSuffix, params, null);
+	}
+
 	public SAXSource postXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params,
 			HttpClientContext context) throws Exception {
 
 		return post(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler(), true);
 	}
+	
+	public JSONObject postBodyJson(final String suffixUrl, String data) throws Exception {
+
+		return postBodyJson(suffixUrl, data, (HttpClientContext) null);
+	}
+
+	public JSONObject postBodyJson(final String suffixUrl, String data, HttpClientContext context) throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return postBodyJson(this.hostConfig.getHostUrl(), suffixUrl, data, context);
+	}
 
 	public JSONObject postBodyJson(final String hostUrl, String urlSuffix, String data) throws Exception {
 
-		return postBodyData(hostUrl, urlSuffix, data, null, new JsonResponseHandler());
-	}
-
-	public SAXSource postBodyXml(final String hostUrl, String urlSuffix, String data) throws Exception {
-
-		return postBodyData(hostUrl, urlSuffix, data, null, new SAXSourceResponseHandler());
+		return postBodyJson(hostUrl, urlSuffix, data, null);
 	}
 
 	public JSONObject postBodyJson(final String hostUrl, String urlSuffix, String data, HttpClientContext context)
 			throws Exception {
 
-		return postBodyData(hostUrl, urlSuffix, data, context, new JsonResponseHandler());
+		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, data, context, new JsonResponseHandler());
+	}
+
+	public SAXSource postBodyXml(final String suffixUrl, String data) throws Exception {
+
+		return postBodyXml(suffixUrl, data, (HttpClientContext) null);
+	}
+
+	public SAXSource postBodyXml(final String suffixUrl, String data, HttpClientContext context) throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return postBodyXml(this.hostConfig.getHostUrl(), suffixUrl, data, context);
+	}
+
+	public SAXSource postBodyXml(final String hostUrl, String urlSuffix, String data) throws Exception {
+
+		return postBodyXml(hostUrl, urlSuffix, data, null);
 	}
 
 	public SAXSource postBodyXml(final String hostUrl, String urlSuffix, String data, HttpClientContext context)
 			throws Exception {
 
-		return postBodyData(hostUrl, urlSuffix, data, context, new SAXSourceResponseHandler());
+		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, data, context, new SAXSourceResponseHandler());
+	}
+
+	public String postBodyData(final String hostUrl, String urlSuffix, String data, HttpClientContext context)
+			throws Exception {
+
+		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, data, context, new StringResponseHandler());
+	}
+
+	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params,
+			ResponseHandler<T> responseHandler) throws Exception {
+
+		return get(hostUrl, urlSuffix, params, null, responseHandler);
+	}
+
+	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
+			ResponseHandler<T> responseHandler) throws Exception {
+
+		return get(hostUrl, urlSuffix, params, context, responseHandler, false);
+	}
+
+	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
+			ResponseHandler<T> responseHandler, boolean isAjax) throws Exception {
+
+		return doRequest(HttpGet.METHOD_NAME, hostUrl, urlSuffix, params, context, responseHandler, isAjax);
 	}
 
 	public <T> T post(final String hostUrl, String urlSuffix, Map<String, String> params,
 			ResponseHandler<T> responseHandler) throws Exception {
 
-		return post(hostUrl, urlSuffix, params, null, responseHandler, false);
+		return post(hostUrl, urlSuffix, params, null, responseHandler);
 	}
 
 	public <T> T post(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
@@ -460,88 +613,120 @@ public class Request {
 	public <T> T post(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
 			ResponseHandler<T> responseHandler, boolean isAjax) throws Exception {
 
-		Args.notEmpty(hostUrl, "hostUrl");
-		Args.notEmpty(urlSuffix, "urlSuffix");
-		Args.notNull(responseHandler, "responseHandler");
-
-		String url = buildReqUrl(hostUrl + urlSuffix);
-
-		HttpPost httpPost = new HttpPost(url);
-
-		if (context == null)
-			context = defaultHttpContext;
-
-		if (responseHandler instanceof JsonResponseHandler) {
-			setAcceptHeader(httpPost, MediaType.APPLICATION_JSON_VALUE);
-		} else if (responseHandler instanceof SAXSourceResponseHandler
-				|| responseHandler instanceof XmlResponseHandler) {
-			setAcceptHeader(httpPost, MediaType.APPLICATION_XML_VALUE);
-		} else {
-			setAcceptHeader(httpPost, MediaType.TEXT_PLAIN_VALUE);
-		}
-
-		if (isAjax) {
-			setAjaxHeader(httpPost, context);
-		}
-
-		if (params != null) {
-			UrlEncodedFormEntity postEntity = buildUrlEncodedFormEntity(params);
-			httpPost.setEntity(postEntity);
-		}
-
-		T rs = getHttpClient().execute(httpPost, responseHandler, context);
-
-		if (log.isDebugEnabled()) {
-			log.debug(String.format("Post data to path:\"%s\". result: %s", url, rs));
-		}
-
-		return rs;
+		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, params, context, responseHandler, isAjax);
 	}
 
-	public <T> T postBodyData(final String hostUrl, String urlSuffix, String data, HttpClientContext context,
+	public <T> T doRequest(final String method, final String suffixUrl, Map<String, String> params, ResponseHandler<T> responseHandler) throws Exception {
+		
+		return doRequest(method, suffixUrl, params, null, responseHandler);
+	}
+	
+	public <T> T doRequest(final String method, final String suffixUrl, Map<String, String> params,
+			HttpClientContext context, ResponseHandler<T> responseHandler) throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return doRequest(method, hostConfig.getHostUrl(), suffixUrl, params, context, responseHandler);
+	}
+
+	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix,
+			Map<String, String> params, HttpClientContext context, ResponseHandler<T> responseHandler)
+					throws Exception {
+		
+		return doRequest(method, hostUrl, urlSuffix, params, context, responseHandler, false);
+	}
+	
+	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix,
+			Map<String, String> params, HttpClientContext context, ResponseHandler<T> responseHandler, boolean isAjax)
+			throws Exception {
+
+		return doRequest(method, hostUrl, urlSuffix, params, null, context, responseHandler, isAjax);
+	}
+
+	public <T> T doRequest(final String method, final String suffixUrl, String data, 
 			ResponseHandler<T> responseHandler) throws Exception {
+		
+		return doRequest(method, suffixUrl, data, null, responseHandler);
+	}
+	
+	public <T> T doRequest(final String method, final String suffixUrl, String data, HttpClientContext context,
+			ResponseHandler<T> responseHandler) throws Exception {
+
+		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
+		notFullUrl(suffixUrl);
+
+		return doRequest(method, hostConfig.getHostUrl(), suffixUrl, data, context, responseHandler);
+	}
+
+	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix, String data,
+			HttpClientContext context, ResponseHandler<T> responseHandler) throws Exception {
+		
+		return doRequest(method, hostUrl, urlSuffix, data, context, responseHandler, false);
+	}
+	
+	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix, String data,
+			HttpClientContext context, ResponseHandler<T> responseHandler, boolean isAjax) throws Exception {
+
+		Args.notNull(data, "data");
+		return doRequest(method, hostUrl, urlSuffix, null, data, context, responseHandler, isAjax);
+	}
+
+	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix,
+			Map<String, String> params, String data, HttpClientContext context, ResponseHandler<T> responseHandler,
+			boolean isAjax) throws Exception {
 
 		Args.notEmpty(hostUrl, "hostUrl");
 		Args.notEmpty(urlSuffix, "urlSuffix");
-		Args.notEmpty(data, "data");
 		Args.notNull(responseHandler, "responseHandler");
 
+		Charset charset = hostConfig.getCharset() == null ? Consts.UTF_8 : hostConfig.getCharset();
+
 		String url = buildReqUrl(hostUrl + urlSuffix);
-
-		HttpPost httpPost = new HttpPost(url);
-
-		if (context == null)
-			context = defaultHttpContext;
+		// final String url = hostUrl + urlSuffix;
 
 		String contentType = null;
 
 		if (responseHandler instanceof JsonResponseHandler) {
-			setAcceptHeader(httpPost, MediaType.APPLICATION_JSON_VALUE);
-			contentType = MediaType.APPLICATION_JSON_UTF8_VALUE;
+			contentType = MediaType.APPLICATION_JSON_VALUE;
 		} else if (responseHandler instanceof SAXSourceResponseHandler
 				|| responseHandler instanceof XmlResponseHandler) {
-			setAcceptHeader(httpPost, MediaType.APPLICATION_XML_VALUE);
 			contentType = MediaType.APPLICATION_XML_VALUE;
 		} else {
-			setAcceptHeader(httpPost, MediaType.TEXT_PLAIN_VALUE);
 			contentType = MediaType.TEXT_PLAIN_VALUE;
 		}
 
-		StringEntity reqEntity = new StringEntity(data, Consts.UTF_8);
-		reqEntity.setContentType(contentType);
-		httpPost.setEntity(reqEntity);
+		RequestBuilder requestBuilder = RequestBuilder.create(method).setUri(url);
+		requestBuilder.setCharset(charset);
 
-		T rs = getHttpClient().execute(httpPost, responseHandler, context);
+		if (data == null) {
+			buildParameters(requestBuilder, params);
+		} else {
+			StringEntity reqEntity = new StringEntity(data, charset);
+			reqEntity.setContentType(contentType);
+			requestBuilder.setEntity(reqEntity);
+		}
+
+		HttpUriRequest httpRequest = AllRequestBuilder.build(requestBuilder);
+
+		setAcceptHeader(httpRequest, contentType + ";charset=" + charset.name());
+
+		if (isAjax)
+			setAjaxHeader(httpRequest);
+
+		if (context == null)
+			context = defaultHttpContext;
+
+		T rs = getHttpClient().execute(httpRequest, responseHandler, context);
 
 		if (log.isDebugEnabled()) {
-
 			log.debug(String.format("Post data to path:\"%s\". result: %s", url, rs));
 		}
 
 		return rs;
 	}
 
-	public void setAjaxHeader(HttpRequest resquest, HttpClientContext context) {
+	public void setAjaxHeader(HttpRequest resquest) {
 		resquest.addHeader("X-Requested-With", "XMLHttpRequest");
 	}
 
@@ -614,11 +799,9 @@ public class Request {
 	 * 
 	 * @param params
 	 * @return
-	 * @throws ClientProtocolException
 	 */
-	public UrlEncodedFormEntity buildUrlEncodedFormEntity(Map<String, String> params) throws ClientProtocolException {
-		if (params == null)
-			throw new ClientProtocolException("Params is null");
+	public UrlEncodedFormEntity buildUrlEncodedFormEntity(Map<String, String> params) {
+		Args.notNull(params, "params");
 
 		List<NameValuePair> parameters = new ArrayList<NameValuePair>(params.size());
 
@@ -627,6 +810,26 @@ public class Request {
 		}
 
 		return new UrlEncodedFormEntity(parameters, Consts.UTF_8);
+	}
+
+	/**
+	 * 
+	 * @param requestBuilder
+	 * @param params
+	 * @return
+	 */
+	public void buildParameters(RequestBuilder requestBuilder, Map<String, String> params) {
+
+		if (params != null) {
+			for (Map.Entry<String, String> entry : params.entrySet()) {
+				requestBuilder.addParameter(entry.getKey(), entry.getValue());
+			}
+		}
+	}
+
+	private void notFullUrl(final String suffixUrl) {
+		Args.notBlank(suffixUrl, "suffixUrl");
+		Args.check(suffixUrl.indexOf("://") == -1, "suffixUrl must not contains \"://\".");
 	}
 
 	/**
