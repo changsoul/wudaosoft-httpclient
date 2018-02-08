@@ -33,7 +33,7 @@ public abstract class DefaultHostConfig implements HostConfig {
 	private RequestConfig defaultRequestConfig;
 	
 	public DefaultHostConfig() {
-		defaultRequestConfig = org.apache.http.client.config.RequestConfig.custom()
+		defaultRequestConfig = RequestConfig.custom()
 				.setExpectContinueEnabled(false)
 				// .setStaleConnectionCheckEnabled(true)
 				.setTargetPreferredAuthSchemes(Arrays.asList(AuthSchemes.NTLM, AuthSchemes.DIGEST))
@@ -110,7 +110,7 @@ public abstract class DefaultHostConfig implements HostConfig {
 	@Override
 	public int getPoolSize() {
 		
-		return 100;
+		return 70;
 	}
 	
 }

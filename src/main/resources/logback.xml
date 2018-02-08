@@ -7,7 +7,7 @@
 		</encoder>
 	</appender>
 
-	<logger name="org.apache.http.wire" level="ERROR" />
+	<logger name="org.apache.http.wire" level="info" />
 
 	<root level="DEBUG">
 		<appender-ref ref="console" />

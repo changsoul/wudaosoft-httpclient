@@ -37,7 +37,7 @@ import org.apache.http.protocol.HTTP;
  * @author Changsoul Wu
  * 
  */
-public class AllRequestBuilder {
+class AllRequestBuilder {
 
 	public static HttpUriRequest build(RequestBuilder builder) {
 

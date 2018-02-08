@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2017 Wudao Software Studio(wudaosoft.com)
+ *    Copyright 2009-2018 Wudao Software Studio(wudaosoft.com)
  * 
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@ import org.apache.http.conn.socket.PlainConnectionSocketFactory;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.NoConnectionReuseStrategy;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
 import org.apache.http.impl.client.HttpClientBuilder;
@@ -91,13 +92,23 @@ public class Request {
 	private static final Logger log = LoggerFactory.getLogger(Request.class);
 
 	private HostConfig hostConfig;
+	
 	private CloseableHttpClient httpClient;
+	
 	private SSLContext sslcontext;
+	
 	private Class<? extends CookieStore> defaultCookieStoreClass;
+	
 	private PoolingHttpClientConnectionManager connManager;
-	private ConnectionKeepAliveStrategy myKeepAliveStrategy;
+	
+	private ConnectionKeepAliveStrategy keepAliveStrategy;
+	
+	private boolean isKeepAlive = true;
+	
 	private HttpRequestRetryHandler retryHandler;
+	
 	private HttpRequestInterceptor requestInterceptor;
+	
 	private HttpClientContext defaultHttpContext;
 
 	private Request() {
@@ -108,12 +119,23 @@ public class Request {
 	}
 
 	public static Request createDefault(HostConfig hostConfig) {
-		return new Request().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
+		return new Request().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig))
+				.build();
 	}
 
-	public static Request createDefaultWithNoRetry(HostConfig hostConfig) {
-		HttpRequestRetryHandler retryHandler1 = new DefaultHttpRequestRetryHandler(0, false);
-		return new Request().setHostConfig(hostConfig).setRetryHandler(retryHandler1).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
+	public static Request createWithNoRetry(HostConfig hostConfig) {
+		return new Request().setHostConfig(hostConfig).setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
+				.setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
+	}
+
+	public static Request createWithNoKeepAlive(HostConfig hostConfig) {
+		return new Request().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig))
+				.setIsKeepAlive(false).build();
+	}
+
+	public static Request createWithNoRetryAndNoKeepAlive(HostConfig hostConfig) {
+		return new Request().setHostConfig(hostConfig).setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
+				.setIsKeepAlive(false).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
 	}
 
 	public Request setHostConfig(HostConfig hostConfig) {
@@ -137,6 +159,23 @@ public class Request {
 
 	public Request setRetryHandler(HttpRequestRetryHandler myRetryHandler) {
 		this.retryHandler = myRetryHandler;
+		return this;
+	}
+
+	/**
+	 * @param keepAliveStrategy
+	 *            the keepAliveStrategy to set
+	 */
+	public Request setKeepAliveStrategy(ConnectionKeepAliveStrategy keepAliveStrategy) {
+		this.keepAliveStrategy = keepAliveStrategy;
+		return this;
+	}
+
+	/**
+	 * @param isKeepAlive the isKeepAlive to set
+	 */
+	public Request setIsKeepAlive(boolean isKeepAlive) {
+		this.isKeepAlive = isKeepAlive;
 		return this;
 	}
 
@@ -182,37 +221,41 @@ public class Request {
 					SSLConnectionSocketFactory.getDefaultHostnameVerifier());
 		}
 
-		myKeepAliveStrategy = new ConnectionKeepAliveStrategy() {
+		if (keepAliveStrategy == null) {
+			keepAliveStrategy = new ConnectionKeepAliveStrategy() {
 
-			public long getKeepAliveDuration(HttpResponse response, HttpContext context) {
-				// Honor 'keep-alive' header
-				HeaderElementIterator it = new BasicHeaderElementIterator(
-						response.headerIterator(HTTP.CONN_KEEP_ALIVE));
-				while (it.hasNext()) {
-					HeaderElement he = it.nextElement();
-					String param = he.getName();
-					String value = he.getValue();
-					if (value != null && param.equalsIgnoreCase("timeout")) {
-						try {
-							return Long.parseLong(value) * 1000;
-						} catch (NumberFormatException ignore) {
+				public long getKeepAliveDuration(HttpResponse response, HttpContext context) {
+					// Honor 'keep-alive' header
+					HeaderElementIterator it = new BasicHeaderElementIterator(
+							response.headerIterator(HTTP.CONN_KEEP_ALIVE));
+					while (it.hasNext()) {
+						HeaderElement he = it.nextElement();
+						String param = he.getName();
+						String value = he.getValue();
+						if (value != null && param.equalsIgnoreCase("timeout")) {
+							try {
+								return Long.parseLong(value) * 1000;
+							} catch (NumberFormatException ignore) {
+							}
 						}
 					}
+					// HttpHost target = (HttpHost)
+					// context.getAttribute(HttpClientContext.HTTP_TARGET_HOST);
+					// if
+					// ("xxxxx".equalsIgnoreCase(target.getHostName()))
+					// {
+					// // Keep alive for 5 seconds only
+					// return 3 * 1000;
+					// } else {
+					// // otherwise keep alive for 30 seconds
+					// return 30 * 1000;
+					// }
+
+					return 30 * 1000;
 				}
-				// HttpHost target = (HttpHost)
-				// context.getAttribute(HttpClientContext.HTTP_TARGET_HOST);
-				// if ("kyfw.12306.cn".equalsIgnoreCase(target.getHostName())) {
-				// // Keep alive for 5 seconds only
-				// return 3 * 1000;
-				// } else {
-				// // otherwise keep alive for 30 seconds
-				// return 30 * 1000;
-				// }
 
-				return 30 * 1000;
-			}
-
-		};
+			};
+		}
 
 		if (retryHandler == null) {
 			retryHandler = new HttpRequestRetryHandler() {
@@ -250,7 +293,7 @@ public class Request {
 			};
 		}
 
-		connManager = new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory> create()
+		connManager = new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
 				.register("http", PlainConnectionSocketFactory.getSocketFactory())
 				.register("https", sslConnectionSocketFactory).build());
 
@@ -295,7 +338,6 @@ public class Request {
 	public String getString(final String suffixUrl, Map<String, String> params, HttpClientContext context)
 			throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return getString(this.hostConfig.getHostUrl(), suffixUrl, params, context);
@@ -330,7 +372,6 @@ public class Request {
 	public JSONObject getJson(final String suffixUrl, Map<String, String> params, HttpClientContext context)
 			throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return getJson(this.hostConfig.getHostUrl(), suffixUrl, params, context);
@@ -365,7 +406,6 @@ public class Request {
 	public SAXSource getXml(final String suffixUrl, Map<String, String> params, HttpClientContext context)
 			throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return getXml(this.hostConfig.getHostUrl(), suffixUrl, params, context);
@@ -417,7 +457,6 @@ public class Request {
 	public String postString(final String suffixUrl, Map<String, String> params, HttpClientContext context)
 			throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return postString(this.hostConfig.getHostUrl(), suffixUrl, params, context);
@@ -452,7 +491,6 @@ public class Request {
 	public JSONObject postJson(final String suffixUrl, Map<String, String> params, HttpClientContext context)
 			throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return postJson(this.hostConfig.getHostUrl(), suffixUrl, params, context);
@@ -487,7 +525,6 @@ public class Request {
 	public SAXSource postXml(final String suffixUrl, Map<String, String> params, HttpClientContext context)
 			throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return postXml(this.hostConfig.getHostUrl(), suffixUrl, params, context);
@@ -504,7 +541,8 @@ public class Request {
 		return post(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler());
 	}
 
-	public JSONObject postJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
+	public JSONObject postJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params)
+			throws Exception {
 
 		return postJsonAjax(hostUrl, urlSuffix, params, null);
 	}
@@ -525,7 +563,7 @@ public class Request {
 
 		return post(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler(), true);
 	}
-	
+
 	public JSONObject postBodyJson(final String suffixUrl, String data) throws Exception {
 
 		return postBodyJson(suffixUrl, data, (HttpClientContext) null);
@@ -533,7 +571,6 @@ public class Request {
 
 	public JSONObject postBodyJson(final String suffixUrl, String data, HttpClientContext context) throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return postBodyJson(this.hostConfig.getHostUrl(), suffixUrl, data, context);
@@ -557,7 +594,6 @@ public class Request {
 
 	public SAXSource postBodyXml(final String suffixUrl, String data, HttpClientContext context) throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return postBodyXml(this.hostConfig.getHostUrl(), suffixUrl, data, context);
@@ -616,15 +652,15 @@ public class Request {
 		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, params, context, responseHandler, isAjax);
 	}
 
-	public <T> T doRequest(final String method, final String suffixUrl, Map<String, String> params, ResponseHandler<T> responseHandler) throws Exception {
-		
+	public <T> T doRequest(final String method, final String suffixUrl, Map<String, String> params,
+			ResponseHandler<T> responseHandler) throws Exception {
+
 		return doRequest(method, suffixUrl, params, null, responseHandler);
 	}
-	
+
 	public <T> T doRequest(final String method, final String suffixUrl, Map<String, String> params,
 			HttpClientContext context, ResponseHandler<T> responseHandler) throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return doRequest(method, hostConfig.getHostUrl(), suffixUrl, params, context, responseHandler);
@@ -632,11 +668,11 @@ public class Request {
 
 	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix,
 			Map<String, String> params, HttpClientContext context, ResponseHandler<T> responseHandler)
-					throws Exception {
-		
+			throws Exception {
+
 		return doRequest(method, hostUrl, urlSuffix, params, context, responseHandler, false);
 	}
-	
+
 	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix,
 			Map<String, String> params, HttpClientContext context, ResponseHandler<T> responseHandler, boolean isAjax)
 			throws Exception {
@@ -644,16 +680,15 @@ public class Request {
 		return doRequest(method, hostUrl, urlSuffix, params, null, context, responseHandler, isAjax);
 	}
 
-	public <T> T doRequest(final String method, final String suffixUrl, String data, 
-			ResponseHandler<T> responseHandler) throws Exception {
-		
+	public <T> T doRequest(final String method, final String suffixUrl, String data, ResponseHandler<T> responseHandler)
+			throws Exception {
+
 		return doRequest(method, suffixUrl, data, null, responseHandler);
 	}
-	
+
 	public <T> T doRequest(final String method, final String suffixUrl, String data, HttpClientContext context,
 			ResponseHandler<T> responseHandler) throws Exception {
 
-		Args.notNull(hostConfig.getHost(), "hostConfig.getHost()");
 		notFullUrl(suffixUrl);
 
 		return doRequest(method, hostConfig.getHostUrl(), suffixUrl, data, context, responseHandler);
@@ -661,14 +696,15 @@ public class Request {
 
 	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix, String data,
 			HttpClientContext context, ResponseHandler<T> responseHandler) throws Exception {
-		
+
 		return doRequest(method, hostUrl, urlSuffix, data, context, responseHandler, false);
 	}
-	
+
 	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix, String data,
 			HttpClientContext context, ResponseHandler<T> responseHandler, boolean isAjax) throws Exception {
 
 		Args.notNull(data, "data");
+		
 		return doRequest(method, hostUrl, urlSuffix, null, data, context, responseHandler, isAjax);
 	}
 
@@ -682,7 +718,7 @@ public class Request {
 
 		Charset charset = hostConfig.getCharset() == null ? Consts.UTF_8 : hostConfig.getCharset();
 
-		String url = buildReqUrl(hostUrl + urlSuffix);
+		final String url = buildReqUrl(hostUrl + urlSuffix, charset);
 		// final String url = hostUrl + urlSuffix;
 
 		String contentType = null;
@@ -692,24 +728,25 @@ public class Request {
 		} else if (responseHandler instanceof SAXSourceResponseHandler
 				|| responseHandler instanceof XmlResponseHandler) {
 			contentType = MediaType.APPLICATION_XML_VALUE;
-		} else {
+		} else if (responseHandler instanceof StringResponseHandler) {
 			contentType = MediaType.TEXT_PLAIN_VALUE;
+		} else {
+			contentType = MediaType.APPLICATION_JSON_VALUE;
 		}
 
-		RequestBuilder requestBuilder = RequestBuilder.create(method).setUri(url);
-		requestBuilder.setCharset(charset);
+		RequestBuilder requestBuilder = RequestBuilder.create(method).setCharset(charset).setUri(url);
 
 		if (data == null) {
 			buildParameters(requestBuilder, params);
 		} else {
 			StringEntity reqEntity = new StringEntity(data, charset);
-			reqEntity.setContentType(contentType);
+			reqEntity.setContentType(contentType + "; charset=" + charset.name());
 			requestBuilder.setEntity(reqEntity);
 		}
 
 		HttpUriRequest httpRequest = AllRequestBuilder.build(requestBuilder);
 
-		setAcceptHeader(httpRequest, contentType + ";charset=" + charset.name());
+		setAcceptHeader(httpRequest, contentType);
 
 		if (isAjax)
 			setAjaxHeader(httpRequest);
@@ -717,13 +754,13 @@ public class Request {
 		if (context == null)
 			context = defaultHttpContext;
 
-		T rs = getHttpClient().execute(httpRequest, responseHandler, context);
+		T result = getHttpClient().execute(httpRequest, responseHandler, context);
 
 		if (log.isDebugEnabled()) {
-			log.debug(String.format("Post data to path:\"%s\". result: %s", url, rs));
+			log.debug(String.format("Send data to path:[%s]\"%s\". result: %s", method, url, result));
 		}
 
-		return rs;
+		return result;
 	}
 
 	public void setAjaxHeader(HttpRequest resquest) {
@@ -739,9 +776,9 @@ public class Request {
 	 * @param reqUrl
 	 * @return
 	 */
-	public String buildReqUrl(String reqUrl) {
+	public String buildReqUrl(String reqUrl, Charset charset) {
 
-		return buildReqUrl(reqUrl, null);
+		return buildReqUrl(reqUrl, null, charset);
 	}
 
 	/**
@@ -750,7 +787,7 @@ public class Request {
 	 * @param params
 	 * @return
 	 */
-	public String buildReqUrl(String reqUrl, Map<String, String> params) {
+	public String buildReqUrl(String reqUrl, Map<String, String> params, Charset charset) {
 		if (reqUrl == null)
 			return null;
 
@@ -790,7 +827,7 @@ public class Request {
 			for (Map.Entry<String, String> entry : params.entrySet()) {
 				parameters.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
 			}
-			sp.append(URLEncodedUtils.format(parameters, Consts.UTF_8));
+			sp.append(URLEncodedUtils.format(parameters, charset));
 		}
 		return sp.toString();
 	}
@@ -828,8 +865,8 @@ public class Request {
 	}
 
 	private void notFullUrl(final String suffixUrl) {
-		Args.notBlank(suffixUrl, "suffixUrl");
-		Args.check(suffixUrl.indexOf("://") == -1, "suffixUrl must not contains \"://\".");
+		Args.notNull(suffixUrl, "suffixUrl");
+		Args.check(suffixUrl.indexOf("://") == -1, "suffixUrl must be not contains \"://\".");
 	}
 
 	/**
@@ -856,9 +893,14 @@ public class Request {
 		}
 
 		HttpClientBuilder builder = HttpClients.custom().setConnectionManager(connManager)
-				.setKeepAliveStrategy(myKeepAliveStrategy).setDefaultRequestConfig(hostConfig.getRequestConfig())
-				// .setConnectionReuseStrategy(NoConnectionReuseStrategy.INSTANCE)
+				.setDefaultRequestConfig(hostConfig.getRequestConfig())
 				.setRetryHandler(retryHandler).setDefaultCookieStore(cookieStore);
+		
+		if (isKeepAlive) {
+			builder.setKeepAliveStrategy(keepAliveStrategy);
+		} else {
+			builder.setConnectionReuseStrategy(NoConnectionReuseStrategy.INSTANCE);
+		}
 
 		if (requestInterceptor != null) {
 			builder.addInterceptorLast(requestInterceptor);
