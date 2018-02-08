@@ -740,7 +740,7 @@ public class Request {
 			buildParameters(requestBuilder, params);
 		} else {
 			StringEntity reqEntity = new StringEntity(data, charset);
-			reqEntity.setContentType(contentType + "; charset=" + charset.name());
+			reqEntity.setContentType(contentType + ";charset=" + charset.name());
 			requestBuilder.setEntity(reqEntity);
 		}
 

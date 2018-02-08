@@ -73,17 +73,17 @@ public class SortHeadersInterceptor implements HttpRequestInterceptor {
 		}
 		
 		if (!request.containsHeader("Content-Type")) {
-			request.addHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+			request.addHeader("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8");
 		}
 
-		request.addHeader("Accept-Language", "zh-CN,zh;q=0.8,ja;q=0.6,en;q=0.4");
+//		request.addHeader("Accept-Language", "zh-CN,zh;q=0.8,ja;q=0.6,en;q=0.4");
 		request.addHeader("Cache-Control", "no-cache");
 		request.addHeader("Pragma", "no-cache");
 
 		if (request.containsHeader("X-Requested-With")) {
 			if (request instanceof HttpUriRequest && HttpPost.METHOD_NAME.equals(((HttpUriRequest) request).getMethod())) {
-				request.setHeader("Accept", "application/json, text/javascript, */*; q=0.01");
-				request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
+//				request.setHeader("Accept", "application/json, text/javascript, */*; q=0.01");
+//				request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
 				request.addHeader("Origin", hostConfig.getHostUrl());
 			} else {
 				request.setHeader("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
