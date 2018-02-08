@@ -113,216 +113,33 @@ public class Request {
 
 	private Request() {
 	}
-
-	public static Request custom() {
-		return new Request();
-	}
-
-	public static Request createDefault(HostConfig hostConfig) {
-		return new Request().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig))
-				.build();
-	}
-
-	public static Request createWithNoRetry(HostConfig hostConfig) {
-		return new Request().setHostConfig(hostConfig).setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
-				.setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
-	}
-
-	public static Request createWithNoKeepAlive(HostConfig hostConfig) {
-		return new Request().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig))
-				.setIsKeepAlive(false).build();
-	}
-
-	public static Request createWithNoRetryAndNoKeepAlive(HostConfig hostConfig) {
-		return new Request().setHostConfig(hostConfig).setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
-				.setIsKeepAlive(false).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
-	}
-
-	public Request setHostConfig(HostConfig hostConfig) {
-		this.hostConfig = hostConfig;
-		return this;
-	}
-
+	
 	public HostConfig getHostConfig() {
 		return hostConfig;
 	}
 
-	public Request setSslcontext(SSLContext sslcontext) {
-		this.sslcontext = sslcontext;
-		return this;
+	public static Request.Builder custom() {
+		return new Builder();
 	}
 
-	public Request setDefaultCookieStoreClass(Class<? extends CookieStore> defaultCookieStoreClass) {
-		this.defaultCookieStoreClass = defaultCookieStoreClass;
-		return this;
+	public static Request createDefault(HostConfig hostConfig) {
+		return custom().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig))
+				.build();
 	}
 
-	public Request setRetryHandler(HttpRequestRetryHandler myRetryHandler) {
-		this.retryHandler = myRetryHandler;
-		return this;
+	public static Request createWithNoRetry(HostConfig hostConfig) {
+		return custom().setHostConfig(hostConfig).setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
+				.setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
 	}
 
-	/**
-	 * @param keepAliveStrategy
-	 *            the keepAliveStrategy to set
-	 */
-	public Request setKeepAliveStrategy(ConnectionKeepAliveStrategy keepAliveStrategy) {
-		this.keepAliveStrategy = keepAliveStrategy;
-		return this;
+	public static Request createWithNoKeepAlive(HostConfig hostConfig) {
+		return custom().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig))
+				.setIsKeepAlive(false).build();
 	}
 
-	/**
-	 * @param isKeepAlive the isKeepAlive to set
-	 */
-	public Request setIsKeepAlive(boolean isKeepAlive) {
-		this.isKeepAlive = isKeepAlive;
-		return this;
-	}
-
-	public Request setRequestInterceptor(HttpRequestInterceptor requestInterceptor) {
-		this.requestInterceptor = requestInterceptor;
-		return this;
-	}
-
-	public Request build() {
-		try {
-			init();
-			return this;
-		} catch (Exception e) {
-			if (e instanceof RuntimeException)
-				throw (RuntimeException) e;
-			throw new RuntimeException(e);
-		}
-	}
-
-	protected void init() throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException,
-			CertificateException, IOException {
-
-		Args.notNull(hostConfig, "Host config");
-
-		SSLConnectionSocketFactory sslConnectionSocketFactory = null;
-
-		if (sslcontext == null) {
-
-			if (hostConfig.getCA() != null) {
-				// Trust root CA and all self-signed certs
-				SSLContext sslcontext1 = SSLContexts.custom().loadTrustMaterial(hostConfig.getCA(),
-						hostConfig.getCAPassword(), new TrustSelfSignedStrategy()).build();
-
-				// Allow TLSv1 protocol only
-				sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext1, new String[] { "TLSv1" }, null,
-						SSLConnectionSocketFactory.getDefaultHostnameVerifier());
-			} else {
-				sslConnectionSocketFactory = SSLConnectionSocketFactory.getSocketFactory();
-			}
-		} else {
-
-			sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext, new String[] { "TLSv1" }, null,
-					SSLConnectionSocketFactory.getDefaultHostnameVerifier());
-		}
-
-		if (keepAliveStrategy == null) {
-			keepAliveStrategy = new ConnectionKeepAliveStrategy() {
-
-				public long getKeepAliveDuration(HttpResponse response, HttpContext context) {
-					// Honor 'keep-alive' header
-					HeaderElementIterator it = new BasicHeaderElementIterator(
-							response.headerIterator(HTTP.CONN_KEEP_ALIVE));
-					while (it.hasNext()) {
-						HeaderElement he = it.nextElement();
-						String param = he.getName();
-						String value = he.getValue();
-						if (value != null && param.equalsIgnoreCase("timeout")) {
-							try {
-								return Long.parseLong(value) * 1000;
-							} catch (NumberFormatException ignore) {
-							}
-						}
-					}
-					// HttpHost target = (HttpHost)
-					// context.getAttribute(HttpClientContext.HTTP_TARGET_HOST);
-					// if
-					// ("xxxxx".equalsIgnoreCase(target.getHostName()))
-					// {
-					// // Keep alive for 5 seconds only
-					// return 3 * 1000;
-					// } else {
-					// // otherwise keep alive for 30 seconds
-					// return 30 * 1000;
-					// }
-
-					return 30 * 1000;
-				}
-
-			};
-		}
-
-		if (retryHandler == null) {
-			retryHandler = new HttpRequestRetryHandler() {
-
-				public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
-					if (executionCount >= 3) {
-						// Do not retry if over max retry count
-						return false;
-					}
-					if (exception instanceof InterruptedIOException) {
-						// Timeout
-						return false;
-					}
-					if (exception instanceof UnknownHostException) {
-						// Unknown host
-						return false;
-					}
-					if (exception instanceof ConnectTimeoutException) {
-						// Connection refused
-						return false;
-					}
-					if (exception instanceof SSLException) {
-						// SSL handshake exception
-						return false;
-					}
-					HttpClientContext clientContext = HttpClientContext.adapt(context);
-					HttpRequest request = clientContext.getRequest();
-					boolean idempotent = !(request instanceof HttpEntityEnclosingRequest);
-					if (idempotent) {
-						// Retry if the request is considered idempotent
-						return true;
-					}
-					return false;
-				}
-			};
-		}
-
-		connManager = new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
-				.register("http", PlainConnectionSocketFactory.getSocketFactory())
-				.register("https", sslConnectionSocketFactory).build());
-
-		connManager.setMaxTotal(hostConfig.getPoolSize() + 30);
-		connManager.setDefaultMaxPerRoute(5);
-
-		if (hostConfig.getHost() != null) {
-			connManager.setMaxPerRoute(
-					new HttpRoute(hostConfig.getHost(), null,
-							!HttpHost.DEFAULT_SCHEME_NAME.equals(hostConfig.getHost().getSchemeName())),
-					hostConfig.getPoolSize());
-		}
-		// connManager.setValidateAfterInactivity(2000);
-
-		// Create socket configuration
-		SocketConfig socketConfig = SocketConfig.custom().setTcpNoDelay(true).setSoKeepAlive(true).build();
-		connManager.setDefaultSocketConfig(socketConfig);
-
-		// Create connection configuration
-		ConnectionConfig connectionConfig = ConnectionConfig.custom().setMalformedInputAction(CodingErrorAction.IGNORE)
-				.setUnmappableInputAction(CodingErrorAction.IGNORE).setCharset(Consts.UTF_8).build();
-		connManager.setDefaultConnectionConfig(connectionConfig);
-
-		new IdleConnectionMonitorThread(connManager).start();
-
-		if (!hostConfig.isMulticlient()) {
-			defaultHttpContext = HttpClientContext.create();
-			httpClient = create();
-		}
+	public static Request createWithNoRetryAndNoKeepAlive(HostConfig hostConfig) {
+		return custom().setHostConfig(hostConfig).setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
+				.setIsKeepAlive(false).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
 	}
 
 	public String getString(final String suffixUrl) throws Exception {
@@ -913,6 +730,189 @@ public class Request {
 
 	public void shutdown() {
 		connManager.shutdown();
+	}
+	
+	public static class Builder {
+		
+		Builder() {
+			
+		}
+		
+		public Builder setHostConfig(HostConfig hostConfig) {
+			this.hostConfig = hostConfig;
+			return this;
+		}
+
+		public Builder setSslcontext(SSLContext sslcontext) {
+			this.sslcontext = sslcontext;
+			return this;
+		}
+
+		public Builder setDefaultCookieStoreClass(Class<? extends CookieStore> defaultCookieStoreClass) {
+			this.defaultCookieStoreClass = defaultCookieStoreClass;
+			return this;
+		}
+
+		public Builder setRetryHandler(HttpRequestRetryHandler myRetryHandler) {
+			this.retryHandler = myRetryHandler;
+			return this;
+		}
+
+		public Builder setKeepAliveStrategy(ConnectionKeepAliveStrategy keepAliveStrategy) {
+			this.keepAliveStrategy = keepAliveStrategy;
+			return this;
+		}
+
+		public Builder setIsKeepAlive(boolean isKeepAlive) {
+			this.isKeepAlive = isKeepAlive;
+			return this;
+		}
+
+		public Builder setRequestInterceptor(HttpRequestInterceptor requestInterceptor) {
+			this.requestInterceptor = requestInterceptor;
+			return this;
+		}
+
+		public Request build() {
+			try {
+				init();
+				return this;
+			} catch (Exception e) {
+				if (e instanceof RuntimeException)
+					throw (RuntimeException) e;
+				throw new RuntimeException(e);
+			}
+		}
+
+		protected void init() throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException,
+				CertificateException, IOException {
+
+			Args.notNull(hostConfig, "Host config");
+
+			SSLConnectionSocketFactory sslConnectionSocketFactory = null;
+
+			if (sslcontext == null) {
+
+				if (hostConfig.getCA() != null) {
+					// Trust root CA and all self-signed certs
+					SSLContext sslcontext1 = SSLContexts.custom().loadTrustMaterial(hostConfig.getCA(),
+							hostConfig.getCAPassword(), new TrustSelfSignedStrategy()).build();
+
+					// Allow TLSv1 protocol only
+					sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext1, new String[] { "TLSv1" }, null,
+							SSLConnectionSocketFactory.getDefaultHostnameVerifier());
+				} else {
+					sslConnectionSocketFactory = SSLConnectionSocketFactory.getSocketFactory();
+				}
+			} else {
+
+				sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext, new String[] { "TLSv1" }, null,
+						SSLConnectionSocketFactory.getDefaultHostnameVerifier());
+			}
+
+			if (keepAliveStrategy == null) {
+				keepAliveStrategy = new ConnectionKeepAliveStrategy() {
+
+					public long getKeepAliveDuration(HttpResponse response, HttpContext context) {
+						// Honor 'keep-alive' header
+						HeaderElementIterator it = new BasicHeaderElementIterator(
+								response.headerIterator(HTTP.CONN_KEEP_ALIVE));
+						while (it.hasNext()) {
+							HeaderElement he = it.nextElement();
+							String param = he.getName();
+							String value = he.getValue();
+							if (value != null && param.equalsIgnoreCase("timeout")) {
+								try {
+									return Long.parseLong(value) * 1000;
+								} catch (NumberFormatException ignore) {
+								}
+							}
+						}
+						// HttpHost target = (HttpHost)
+						// context.getAttribute(HttpClientContext.HTTP_TARGET_HOST);
+						// if
+						// ("xxxxx".equalsIgnoreCase(target.getHostName()))
+						// {
+						// // Keep alive for 5 seconds only
+						// return 3 * 1000;
+						// } else {
+						// // otherwise keep alive for 30 seconds
+						// return 30 * 1000;
+						// }
+
+						return 30 * 1000;
+					}
+
+				};
+			}
+
+			if (retryHandler == null) {
+				retryHandler = new HttpRequestRetryHandler() {
+
+					public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
+						if (executionCount >= 3) {
+							// Do not retry if over max retry count
+							return false;
+						}
+						if (exception instanceof InterruptedIOException) {
+							// Timeout
+							return false;
+						}
+						if (exception instanceof UnknownHostException) {
+							// Unknown host
+							return false;
+						}
+						if (exception instanceof ConnectTimeoutException) {
+							// Connection refused
+							return false;
+						}
+						if (exception instanceof SSLException) {
+							// SSL handshake exception
+							return false;
+						}
+						HttpClientContext clientContext = HttpClientContext.adapt(context);
+						HttpRequest request = clientContext.getRequest();
+						boolean idempotent = !(request instanceof HttpEntityEnclosingRequest);
+						if (idempotent) {
+							// Retry if the request is considered idempotent
+							return true;
+						}
+						return false;
+					}
+				};
+			}
+
+			connManager = new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
+					.register("http", PlainConnectionSocketFactory.getSocketFactory())
+					.register("https", sslConnectionSocketFactory).build());
+
+			connManager.setMaxTotal(hostConfig.getPoolSize() + 30);
+			connManager.setDefaultMaxPerRoute(5);
+
+			if (hostConfig.getHost() != null) {
+				connManager.setMaxPerRoute(
+						new HttpRoute(hostConfig.getHost(), null,
+								!HttpHost.DEFAULT_SCHEME_NAME.equals(hostConfig.getHost().getSchemeName())),
+						hostConfig.getPoolSize());
+			}
+			// connManager.setValidateAfterInactivity(2000);
+
+			// Create socket configuration
+			SocketConfig socketConfig = SocketConfig.custom().setTcpNoDelay(true).setSoKeepAlive(true).build();
+			connManager.setDefaultSocketConfig(socketConfig);
+
+			// Create connection configuration
+			ConnectionConfig connectionConfig = ConnectionConfig.custom().setMalformedInputAction(CodingErrorAction.IGNORE)
+					.setUnmappableInputAction(CodingErrorAction.IGNORE).setCharset(Consts.UTF_8).build();
+			connManager.setDefaultConnectionConfig(connectionConfig);
+
+			new IdleConnectionMonitorThread(connManager).start();
+
+			if (!hostConfig.isMulticlient()) {
+				defaultHttpContext = HttpClientContext.create();
+				httpClient = create();
+			}
+		}
 	}
 
 }
