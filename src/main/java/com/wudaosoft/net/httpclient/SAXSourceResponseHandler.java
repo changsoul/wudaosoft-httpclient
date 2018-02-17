@@ -40,11 +40,12 @@ public class SAXSourceResponseHandler implements ResponseHandler<SAXSource> {
 	public SAXSource handleResponse(HttpResponse response)
 			throws ClientProtocolException, IOException {
 		int status = response.getStatusLine().getStatusCode();
-		HttpEntity entity = response.getEntity();
 		
         if (status < 200 || status >= 300) {
         	throw new ClientProtocolException("Unexpected response status: " + status);
         }
+        
+        HttpEntity entity = response.getEntity();
         
         if (entity == null) {
             throw new ClientProtocolException("Response contains no content");

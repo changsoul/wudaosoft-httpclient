@@ -58,11 +58,26 @@ public class XmlObject {
 	}
 	
 	/**
-	 * 从微信Bean生成XML
 	 * @param obj
 	 * @return XmlObject
 	 */
-	public static XmlObject fromWeiXinBean(Object obj){
+	public static XmlObject fromBean(Object obj){
+		XmlObject xobj = new XmlObject();
+		
+		Map<String, Object> mapTmp = BeanUtils.convertBean2Map(obj, false);
+		
+		if(mapTmp != null){
+			xobj.fromMap(mapTmp);
+		}
+		
+		return xobj;
+	}
+	
+	/**
+	 * @param obj
+	 * @return XmlObject
+	 */
+	public static XmlObject fromUpperCaseBean(Object obj){
 		XmlObject xobj = new XmlObject();
 		
 		Map<String, Object> mapTmp = BeanUtils.convertBean2Map(obj, true);
@@ -191,11 +206,10 @@ public class XmlObject {
 	}
 	
 	/**
-	 * 生成微信消息Bean
 	 * @param destClazz
 	 * @return
 	 */
-	public <T> T buildWeiXinBean(Class<T> destClazz) {
+	public <T> T buildUpperCaseBean(Class<T> destClazz) {
 		return BeanUtils.convertMap2Bean(map, destClazz, true);
 	}
 	

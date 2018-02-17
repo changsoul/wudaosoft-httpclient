@@ -15,9 +15,13 @@
  */
 package com.wudaosoft.net.httpclient;
 
-import org.apache.http.HttpHost;
+import javax.xml.transform.sax.SAXSource;
+
+import org.apache.http.Consts;
+import org.apache.http.client.utils.URIBuilder;
 
 import com.alibaba.fastjson.JSONObject;
+import com.wudaosoft.net.utils.XmlReader;
 
 /** 
  * @author Changsoul Wu
@@ -25,33 +29,40 @@ import com.alibaba.fastjson.JSONObject;
  */
 public class Test {
 	
-	private HostConfig config = new DefaultHostConfig() {
-		
-		HttpHost host = HttpHost.create("http://58.248.169.117:8086");
-		
-		@Override
-		public String getHostUrl() {
-			return host.toURI();
-		}
-		
-		@Override
-		public HttpHost getHost() {
-			return host;
-		}
-	};
+	private HostConfig config = HostCofingBuilder.create("http://58.248.169.117:8086").build();
+	
+	private Request request = Request.createDefault(config);
 
 	public void test() throws Exception {
 		
-		Request request = Request.createDefault(config);
+		JSONObject obj = request.get("/mobile/list.json?id=1").json();
 		
-		JSONObject obj = request.getJson("/mobile/list.json?id=1");
+		System.out.println(obj);
+	}
+	
+	public void testXml() throws Exception {
+		
+		SAXSource obj = request.get("/mobile/list.xml?id=1").sax();
+		
+		System.out.println(XmlReader.readFromSource(String.class, obj));
+	}
+	
+	public void testSSL() throws Exception {
+		
+		String obj = request.get("https://www.baidu.com/").withAnyHost().execute();
 		
 		System.out.println(obj);
 	}
 	
 	public static void main(String[] args) throws Exception {
 		
-		new Test().test();
+		Test test = new Test();
+		test.test();
+		test.testSSL();
+		//test.testXml();
+		
+		System.out.println(new URIBuilder("https://www.baidu.com/?pp=中文").setCharset(Consts.UTF_8).build());
+		System.out.println(new URIBuilder("https://www.baidu.com/?pp=jkdafow8ewqr").setCharset(Consts.UTF_8).addParameter("ccs", "中文").addParameter("ooo", "英文").build());
 	}
 	
 }

@@ -16,13 +16,13 @@ Wudaosoft Httpclient Tools.
 <dependency>
     <groupId>com.wudaosoft</groupId>
     <artifactId>wudaosoft-httpclient</artifactId>
-    <version>1.1.0</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 ## Gradle via JCenter
 
 ``` groovy
-compile 'com.wudaosoft:wudaosoft-httpclient:1.1.0'
+compile 'com.wudaosoft:wudaosoft-httpclient:2.0.0'
 ```
 ### *License*
 

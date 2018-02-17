@@ -15,6 +15,7 @@
  */
 package com.wudaosoft.net.httpclient;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.UnknownHostException;
@@ -24,14 +25,15 @@ import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLException;
-import javax.xml.transform.sax.SAXSource;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 
 import org.apache.http.Consts;
 import org.apache.http.HeaderElement;
@@ -46,12 +48,14 @@ import org.apache.http.client.CookieStore;
 import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
+import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
-import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.config.SocketConfig;
@@ -60,9 +64,14 @@ import org.apache.http.conn.ConnectionKeepAliveStrategy;
 import org.apache.http.conn.routing.HttpRoute;
 import org.apache.http.conn.socket.ConnectionSocketFactory;
 import org.apache.http.conn.socket.PlainConnectionSocketFactory;
+import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.conn.ssl.TrustSelfSignedStrategy;
+import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
+import org.apache.http.entity.mime.content.FileBody;
+import org.apache.http.entity.mime.content.StringBody;
 import org.apache.http.impl.NoConnectionReuseStrategy;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.DefaultHttpRequestRetryHandler;
@@ -78,7 +87,6 @@ import org.apache.http.util.Args;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.alibaba.fastjson.JSONObject;
 import com.wudaosoft.net.utils.MediaType;
 
 /**
@@ -88,455 +96,175 @@ import com.wudaosoft.net.utils.MediaType;
  * 
  */
 public class Request {
-
+	
 	private static final Logger log = LoggerFactory.getLogger(Request.class);
 
 	private HostConfig hostConfig;
-	
+
 	private CloseableHttpClient httpClient;
-	
+
 	private SSLContext sslcontext;
-	
+
 	private Class<? extends CookieStore> defaultCookieStoreClass;
-	
+
 	private PoolingHttpClientConnectionManager connManager;
-	
+
 	private ConnectionKeepAliveStrategy keepAliveStrategy;
-	
+
 	private boolean isKeepAlive = true;
 	
+	private boolean isTrustAll = false;
+
 	private HttpRequestRetryHandler retryHandler;
-	
+
 	private HttpRequestInterceptor requestInterceptor;
-	
+
 	private HttpClientContext defaultHttpContext;
 
 	private Request() {
 	}
-	
+
+	/**
+	 * @return the hostConfig
+	 */
 	public HostConfig getHostConfig() {
 		return hostConfig;
 	}
 
+	/**
+	 * @param hostConfig the hostConfig to set
+	 */
+	void setHostConfig(HostConfig hostConfig) {
+		this.hostConfig = hostConfig;
+	}
+
+	/**
+	 * @param sslcontext the sslcontext to set
+	 */
+	void setSslcontext(SSLContext sslcontext) {
+		this.sslcontext = sslcontext;
+	}
+
+	/**
+	 * @param defaultCookieStoreClass the defaultCookieStoreClass to set
+	 */
+	void setDefaultCookieStoreClass(Class<? extends CookieStore> defaultCookieStoreClass) {
+		this.defaultCookieStoreClass = defaultCookieStoreClass;
+	}
+
+	/**
+	 * @param keepAliveStrategy the keepAliveStrategy to set
+	 */
+	void setKeepAliveStrategy(ConnectionKeepAliveStrategy keepAliveStrategy) {
+		this.keepAliveStrategy = keepAliveStrategy;
+	}
+
+	/**
+	 * @param isKeepAlive the isKeepAlive to set
+	 */
+	void setKeepAlive(boolean isKeepAlive) {
+		this.isKeepAlive = isKeepAlive;
+	}
+
+	/**
+	 * @param isTrustAll the isTrustAll to set
+	 */
+	void setTrustAll(boolean isTrustAll) {
+		this.isTrustAll = isTrustAll;
+	}
+
+	/**
+	 * @param retryHandler the retryHandler to set
+	 */
+	void setRetryHandler(HttpRequestRetryHandler retryHandler) {
+		this.retryHandler = retryHandler;
+	}
+
+	/**
+	 * @param requestInterceptor the requestInterceptor to set
+	 */
+	void setRequestInterceptor(HttpRequestInterceptor requestInterceptor) {
+		this.requestInterceptor = requestInterceptor;
+	}
+
+	
+	/**
+	 * @return
+	 */
 	public static Request.Builder custom() {
 		return new Builder();
 	}
 
+	/**
+	 * @param hostConfig
+	 * @return
+	 */
 	public static Request createDefault(HostConfig hostConfig) {
-		return custom().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig))
-				.build();
+		return custom().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
+	}
+	
+	/**
+	 * @param hostConfig
+	 * @return
+	 */
+	public static Request createDefaultAndTrustAll(HostConfig hostConfig) {
+		return custom().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).withTrustAll().build();
 	}
 
+	/**
+	 * @param hostConfig
+	 * @return
+	 */
 	public static Request createWithNoRetry(HostConfig hostConfig) {
 		return custom().setHostConfig(hostConfig).setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
 				.setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
 	}
 
+	/**
+	 * @param hostConfig
+	 * @return
+	 */
 	public static Request createWithNoKeepAlive(HostConfig hostConfig) {
 		return custom().setHostConfig(hostConfig).setRequestInterceptor(new SortHeadersInterceptor(hostConfig))
-				.setIsKeepAlive(false).build();
+				.withNoKeepAlive().build();
 	}
 
+	/**
+	 * @param hostConfig
+	 * @return
+	 */
 	public static Request createWithNoRetryAndNoKeepAlive(HostConfig hostConfig) {
 		return custom().setHostConfig(hostConfig).setRetryHandler(new DefaultHttpRequestRetryHandler(0, false))
-				.setIsKeepAlive(false).setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
-	}
-
-	public String getString(final String suffixUrl) throws Exception {
-
-		return getString(suffixUrl, (Map<String, String>) null);
-	}
-
-	public String getString(final String suffixUrl, Map<String, String> params) throws Exception {
-
-		return getString(suffixUrl, params, null);
-	}
-
-	public String getString(final String suffixUrl, Map<String, String> params, HttpClientContext context)
-			throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return getString(this.hostConfig.getHostUrl(), suffixUrl, params, context);
-	}
-
-	public String getString(final String hostUrl, String urlSuffix) throws Exception {
-
-		return getString(hostUrl, urlSuffix, null);
-	}
-
-	public String getString(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return getString(hostUrl, urlSuffix, params, null);
-	}
-
-	public String getString(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, context, new StringResponseHandler());
-	}
-
-	public JSONObject getJson(final String suffixUrl) throws Exception {
-
-		return getJson(suffixUrl, (Map<String, String>) null);
-	}
-
-	public JSONObject getJson(final String suffixUrl, Map<String, String> params) throws Exception {
-
-		return getJson(suffixUrl, params, null);
-	}
-
-	public JSONObject getJson(final String suffixUrl, Map<String, String> params, HttpClientContext context)
-			throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return getJson(this.hostConfig.getHostUrl(), suffixUrl, params, context);
-	}
-
-	public JSONObject getJson(final String hostUrl, String urlSuffix) throws Exception {
-
-		return getJson(hostUrl, urlSuffix, null);
-	}
-
-	public JSONObject getJson(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return getJson(hostUrl, urlSuffix, params, null);
-	}
-
-	public JSONObject getJson(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, context, new JsonResponseHandler());
-	}
-
-	public SAXSource getXml(final String suffixUrl) throws Exception {
-
-		return getXml(suffixUrl, (Map<String, String>) null);
-	}
-
-	public SAXSource getXml(final String suffixUrl, Map<String, String> params) throws Exception {
-
-		return getXml(suffixUrl, params, null);
-	}
-
-	public SAXSource getXml(final String suffixUrl, Map<String, String> params, HttpClientContext context)
-			throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return getXml(this.hostConfig.getHostUrl(), suffixUrl, params, context);
-	}
-
-	public SAXSource getXml(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return getXml(hostUrl, urlSuffix, params, null);
-	}
-
-	public SAXSource getXml(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler());
-	}
-
-	public JSONObject getJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return getJsonAjax(hostUrl, urlSuffix, params, null);
-	}
-
-	public JSONObject getJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, context, new JsonResponseHandler(), true);
-	}
-
-	public SAXSource getXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return getXmlAjax(hostUrl, urlSuffix, params, null);
-	}
-
-	public SAXSource getXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler(), true);
-	}
-
-	public String postString(final String suffixUrl) throws Exception {
-
-		return postString(suffixUrl, (Map<String, String>) null);
-	}
-
-	public String postString(final String suffixUrl, Map<String, String> params) throws Exception {
-
-		return postString(suffixUrl, params, null);
-	}
-
-	public String postString(final String suffixUrl, Map<String, String> params, HttpClientContext context)
-			throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return postString(this.hostConfig.getHostUrl(), suffixUrl, params, context);
-	}
-
-	public String postString(final String hostUrl, String urlSuffix) throws Exception {
-
-		return postString(hostUrl, urlSuffix, null);
-	}
-
-	public String postString(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return postString(hostUrl, urlSuffix, params, null);
-	}
-
-	public String postString(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, context, new StringResponseHandler());
-	}
-
-	public JSONObject postJson(final String suffixUrl) throws Exception {
-
-		return postJson(suffixUrl, (Map<String, String>) null);
-	}
-
-	public JSONObject postJson(final String suffixUrl, Map<String, String> params) throws Exception {
-
-		return postJson(suffixUrl, params, null);
-	}
-
-	public JSONObject postJson(final String suffixUrl, Map<String, String> params, HttpClientContext context)
-			throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return postJson(this.hostConfig.getHostUrl(), suffixUrl, params, context);
-	}
-
-	public JSONObject postJson(final String hostUrl, String urlSuffix) throws Exception {
-
-		return postJson(hostUrl, urlSuffix, null);
-	}
-
-	public JSONObject postJson(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return postJson(hostUrl, urlSuffix, params, null);
-	}
-
-	public JSONObject postJson(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, context, new JsonResponseHandler());
-	}
-
-	public SAXSource postXml(final String suffixUrl) throws Exception {
-
-		return postXml(suffixUrl, (Map<String, String>) null);
-	}
-
-	public SAXSource postXml(final String suffixUrl, Map<String, String> params) throws Exception {
-
-		return postXml(suffixUrl, params, null);
-	}
-
-	public SAXSource postXml(final String suffixUrl, Map<String, String> params, HttpClientContext context)
-			throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return postXml(this.hostConfig.getHostUrl(), suffixUrl, params, context);
-	}
-
-	public SAXSource postXml(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return postXml(hostUrl, urlSuffix, params, null);
-	}
-
-	public SAXSource postXml(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler());
-	}
-
-	public JSONObject postJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params)
-			throws Exception {
-
-		return postJsonAjax(hostUrl, urlSuffix, params, null);
-	}
-
-	public JSONObject postJsonAjax(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, context, new JsonResponseHandler(), true);
-	}
-
-	public SAXSource postXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params) throws Exception {
-
-		return postXmlAjax(hostUrl, urlSuffix, params, null);
-	}
-
-	public SAXSource postXmlAjax(final String hostUrl, String urlSuffix, Map<String, String> params,
-			HttpClientContext context) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, context, new SAXSourceResponseHandler(), true);
-	}
-
-	public JSONObject postBodyJson(final String suffixUrl, String data) throws Exception {
-
-		return postBodyJson(suffixUrl, data, (HttpClientContext) null);
-	}
-
-	public JSONObject postBodyJson(final String suffixUrl, String data, HttpClientContext context) throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return postBodyJson(this.hostConfig.getHostUrl(), suffixUrl, data, context);
-	}
-
-	public JSONObject postBodyJson(final String hostUrl, String urlSuffix, String data) throws Exception {
-
-		return postBodyJson(hostUrl, urlSuffix, data, null);
-	}
-
-	public JSONObject postBodyJson(final String hostUrl, String urlSuffix, String data, HttpClientContext context)
-			throws Exception {
-
-		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, data, context, new JsonResponseHandler());
-	}
-
-	public SAXSource postBodyXml(final String suffixUrl, String data) throws Exception {
-
-		return postBodyXml(suffixUrl, data, (HttpClientContext) null);
-	}
-
-	public SAXSource postBodyXml(final String suffixUrl, String data, HttpClientContext context) throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return postBodyXml(this.hostConfig.getHostUrl(), suffixUrl, data, context);
-	}
-
-	public SAXSource postBodyXml(final String hostUrl, String urlSuffix, String data) throws Exception {
-
-		return postBodyXml(hostUrl, urlSuffix, data, null);
-	}
-
-	public SAXSource postBodyXml(final String hostUrl, String urlSuffix, String data, HttpClientContext context)
-			throws Exception {
-
-		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, data, context, new SAXSourceResponseHandler());
-	}
-
-	public String postBodyData(final String hostUrl, String urlSuffix, String data, HttpClientContext context)
-			throws Exception {
-
-		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, data, context, new StringResponseHandler());
-	}
-
-	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params,
-			ResponseHandler<T> responseHandler) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, null, responseHandler);
-	}
-
-	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
-			ResponseHandler<T> responseHandler) throws Exception {
-
-		return get(hostUrl, urlSuffix, params, context, responseHandler, false);
-	}
-
-	public <T> T get(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
-			ResponseHandler<T> responseHandler, boolean isAjax) throws Exception {
-
-		return doRequest(HttpGet.METHOD_NAME, hostUrl, urlSuffix, params, context, responseHandler, isAjax);
-	}
-
-	public <T> T post(final String hostUrl, String urlSuffix, Map<String, String> params,
-			ResponseHandler<T> responseHandler) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, null, responseHandler);
-	}
-
-	public <T> T post(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
-			ResponseHandler<T> responseHandler) throws Exception {
-
-		return post(hostUrl, urlSuffix, params, context, responseHandler, false);
-	}
-
-	public <T> T post(final String hostUrl, String urlSuffix, Map<String, String> params, HttpClientContext context,
-			ResponseHandler<T> responseHandler, boolean isAjax) throws Exception {
-
-		return doRequest(HttpPost.METHOD_NAME, hostUrl, urlSuffix, params, context, responseHandler, isAjax);
-	}
-
-	public <T> T doRequest(final String method, final String suffixUrl, Map<String, String> params,
-			ResponseHandler<T> responseHandler) throws Exception {
-
-		return doRequest(method, suffixUrl, params, null, responseHandler);
-	}
-
-	public <T> T doRequest(final String method, final String suffixUrl, Map<String, String> params,
-			HttpClientContext context, ResponseHandler<T> responseHandler) throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return doRequest(method, hostConfig.getHostUrl(), suffixUrl, params, context, responseHandler);
-	}
-
-	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix,
-			Map<String, String> params, HttpClientContext context, ResponseHandler<T> responseHandler)
-			throws Exception {
-
-		return doRequest(method, hostUrl, urlSuffix, params, context, responseHandler, false);
-	}
-
-	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix,
-			Map<String, String> params, HttpClientContext context, ResponseHandler<T> responseHandler, boolean isAjax)
-			throws Exception {
-
-		return doRequest(method, hostUrl, urlSuffix, params, null, context, responseHandler, isAjax);
-	}
-
-	public <T> T doRequest(final String method, final String suffixUrl, String data, ResponseHandler<T> responseHandler)
-			throws Exception {
-
-		return doRequest(method, suffixUrl, data, null, responseHandler);
-	}
-
-	public <T> T doRequest(final String method, final String suffixUrl, String data, HttpClientContext context,
-			ResponseHandler<T> responseHandler) throws Exception {
-
-		notFullUrl(suffixUrl);
-
-		return doRequest(method, hostConfig.getHostUrl(), suffixUrl, data, context, responseHandler);
-	}
-
-	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix, String data,
-			HttpClientContext context, ResponseHandler<T> responseHandler) throws Exception {
-
-		return doRequest(method, hostUrl, urlSuffix, data, context, responseHandler, false);
-	}
-
-	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix, String data,
-			HttpClientContext context, ResponseHandler<T> responseHandler, boolean isAjax) throws Exception {
-
-		Args.notNull(data, "data");
+				.withNoKeepAlive().setRequestInterceptor(new SortHeadersInterceptor(hostConfig)).build();
+	}
+
+	/**
+	 * 
+	 * @param workerBuilder
+	 * @param responseHandler
+	 * @return
+	 * @throws Exception
+	 */
+	public <T> T doRequest(WorkerBuilder workerBuilder, ResponseHandler<T> responseHandler) throws Exception {
 		
-		return doRequest(method, hostUrl, urlSuffix, null, data, context, responseHandler, isAjax);
-	}
+		String method = workerBuilder.getMethod();
+		String url = workerBuilder.getUrl();
 
-	public <T> T doRequest(final String method, final String hostUrl, final String urlSuffix,
-			Map<String, String> params, String data, HttpClientContext context, ResponseHandler<T> responseHandler,
-			boolean isAjax) throws Exception {
-
-		Args.notEmpty(hostUrl, "hostUrl");
-		Args.notEmpty(urlSuffix, "urlSuffix");
+		Args.notNull(workerBuilder, "WorkerBuilder");
+		Args.notEmpty(method, "WorkerBuilder.getMethod()");
+		Args.notEmpty(url, "WorkerBuilder.getUrl()");
 		Args.notNull(responseHandler, "responseHandler");
-
+		
+		if(!workerBuilder.isAnyHost()) {
+			notFullUrl(url);
+			Args.notEmpty(hostConfig.getHostUrl(), "HostConfig.getHostUrl()");
+			url = hostConfig.getHostUrl() + url;
+		}
+		
 		Charset charset = hostConfig.getCharset() == null ? Consts.UTF_8 : hostConfig.getCharset();
-
-		final String url = buildReqUrl(hostUrl + urlSuffix, charset);
-		// final String url = hostUrl + urlSuffix;
+		String stringBody = workerBuilder.getStringBody();
+		File fileBody = workerBuilder.getFileBody();
+		Map<String, String> params = workerBuilder.getParameters();
 
 		String contentType = null;
 
@@ -545,29 +273,53 @@ public class Request {
 		} else if (responseHandler instanceof SAXSourceResponseHandler
 				|| responseHandler instanceof XmlResponseHandler) {
 			contentType = MediaType.APPLICATION_XML_VALUE;
-		} else if (responseHandler instanceof StringResponseHandler) {
-			contentType = MediaType.TEXT_PLAIN_VALUE;
+		} else if (responseHandler instanceof FileResponseHandler
+				|| responseHandler instanceof ImageResponseHandler) {
+			contentType = MediaType.ALL_VALUE;
 		} else {
-			contentType = MediaType.APPLICATION_JSON_VALUE;
+			contentType = MediaType.TEXT_PLAIN_VALUE;
 		}
 
 		RequestBuilder requestBuilder = RequestBuilder.create(method).setCharset(charset).setUri(url);
-
-		if (data == null) {
-			buildParameters(requestBuilder, params);
-		} else {
-			StringEntity reqEntity = new StringEntity(data, charset);
+		
+		if (stringBody != null) {
+			
+			StringEntity reqEntity = new StringEntity(stringBody, charset);
 			reqEntity.setContentType(contentType + ";charset=" + charset.name());
 			requestBuilder.setEntity(reqEntity);
+			
+		} else if (fileBody != null) {
+			
+			Args.check(fileBody.isFile(), "fileBody must be a file");
+			Args.check(fileBody.canRead(), "fileBody must be readable");
+			
+			String filename = workerBuilder.getFilename();
+			if (filename == null)
+				filename = fileBody.getName();
+
+			FileBody bin = new FileBody(fileBody, ContentType.APPLICATION_OCTET_STREAM, filename);
+
+			MultipartEntityBuilder reqEntity = MultipartEntityBuilder.create();
+
+			reqEntity.addPart(workerBuilder.getFileFieldName(), bin);
+			
+			buildParameters(reqEntity, params, charset);
+			
+			requestBuilder.setEntity(reqEntity.build());
+		}
+		
+		if (fileBody == null) {
+			buildParameters(requestBuilder, params);
 		}
 
-		HttpUriRequest httpRequest = AllRequestBuilder.build(requestBuilder);
+		HttpUriRequest httpRequest = ParameterRequestBuilder.build(requestBuilder);
 
 		setAcceptHeader(httpRequest, contentType);
 
-		if (isAjax)
+		if (workerBuilder.isAjax())
 			setAjaxHeader(httpRequest);
 
+		HttpClientContext context= workerBuilder.getContext();
 		if (context == null)
 			context = defaultHttpContext;
 
@@ -590,71 +342,10 @@ public class Request {
 
 	/**
 	 * 
-	 * @param reqUrl
-	 * @return
-	 */
-	public String buildReqUrl(String reqUrl, Charset charset) {
-
-		return buildReqUrl(reqUrl, null, charset);
-	}
-
-	/**
-	 * 
-	 * @param reqUrl
 	 * @param params
 	 * @return
 	 */
-	public String buildReqUrl(String reqUrl, Map<String, String> params, Charset charset) {
-		if (reqUrl == null)
-			return null;
-
-		if (params == null) {
-
-			if (reqUrl.indexOf("?") == -1)
-				return reqUrl;
-
-			params = new HashMap<String, String>();
-		}
-
-		String[] reqUrls = reqUrl.split("\\?");
-		StringBuilder sp = new StringBuilder(reqUrls[0]);
-
-		if (reqUrls.length == 2 && reqUrls[1].trim().length() != 0) {
-
-			String[] kvs = reqUrls[1].split("&");
-			for (String kv : kvs) {
-				if (kv == null || kv.length() == 0)
-					continue;
-
-				String[] nv = kv.split("=");
-				if (nv.length > 2)
-					continue;
-
-				if (nv.length == 2) {
-					params.put(nv[0], nv[1]);
-				} else {
-					params.put(nv[0], "");
-				}
-			}
-		}
-
-		if (!params.isEmpty()) {
-			sp.append("?");
-			List<NameValuePair> parameters = new ArrayList<NameValuePair>(params.size());
-			for (Map.Entry<String, String> entry : params.entrySet()) {
-				parameters.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
-			}
-			sp.append(URLEncodedUtils.format(parameters, charset));
-		}
-		return sp.toString();
-	}
-
-	/**
-	 * 
-	 * @param params
-	 * @return
-	 */
-	public UrlEncodedFormEntity buildUrlEncodedFormEntity(Map<String, String> params) {
+	public UrlEncodedFormEntity buildUrlEncodedFormEntity(Map<String, String> params, Charset charset) {
 		Args.notNull(params, "params");
 
 		List<NameValuePair> parameters = new ArrayList<NameValuePair>(params.size());
@@ -663,9 +354,36 @@ public class Request {
 			parameters.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
 		}
 
-		return new UrlEncodedFormEntity(parameters, Consts.UTF_8);
+		return new UrlEncodedFormEntity(parameters, charset);
 	}
 
+	/**
+	 * 
+	 * @param requestBuilder
+	 * @param params
+	 * @return
+	 */
+	public void buildParameters(MultipartEntityBuilder reqEntity, Map<String, String> params, Charset charset) {
+		
+		if (params != null && !params.isEmpty()) {
+			
+			ContentType contentType = ContentType.create(MediaType.TEXT_PLAIN_VALUE, charset);
+			
+			for (Map.Entry<String, String> entry : params.entrySet()) {
+				
+				if(entry.getKey() == null)
+					continue;
+				
+				String value = entry.getValue();
+
+				if (value == null)
+					value = "";
+				
+				reqEntity.addPart(entry.getKey(), new StringBody(value, contentType));
+			}
+		}
+	}
+	
 	/**
 	 * 
 	 * @param requestBuilder
@@ -676,13 +394,19 @@ public class Request {
 
 		if (params != null) {
 			for (Map.Entry<String, String> entry : params.entrySet()) {
-				requestBuilder.addParameter(entry.getKey(), entry.getValue());
+				if(entry.getKey() == null)
+					continue;
+				
+				String value = entry.getValue();
+
+				if (value == null)
+					value = "";
+				requestBuilder.addParameter(entry.getKey(), value);
 			}
 		}
 	}
 
 	private void notFullUrl(final String suffixUrl) {
-		Args.notNull(suffixUrl, "suffixUrl");
 		Args.check(suffixUrl.indexOf("://") == -1, "suffixUrl must be not contains \"://\".");
 	}
 
@@ -698,7 +422,169 @@ public class Request {
 		return create();
 	}
 
-	public CloseableHttpClient create() {
+	protected void init() throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException,
+			CertificateException, IOException {
+
+		Args.notNull(hostConfig, "Host config");
+
+		SSLConnectionSocketFactory sslConnectionSocketFactory = null;
+
+		if (sslcontext == null) {
+
+			if (hostConfig.getCA() != null) {
+				// Trust root CA and all self-signed certs
+				SSLContext sslcontext1 = SSLContexts.custom().loadTrustMaterial(hostConfig.getCA(),
+						hostConfig.getCAPassword(), TrustSelfSignedStrategy.INSTANCE).build();
+
+				// Allow TLSv1 protocol only
+				sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext1, new String[] { "TLSv1" }, null,
+						SSLConnectionSocketFactory.getDefaultHostnameVerifier());
+			} else {
+				
+				if (isTrustAll) {
+					
+					SSLContext sslcontext1 = SSLContext.getInstance("TLS");
+
+					TrustManager[] trustAllCerts = new TrustManager[] { new X509TrustManager() {
+						public X509Certificate[] getAcceptedIssuers() {
+							return null;
+						}
+
+						@Override
+						public void checkClientTrusted(java.security.cert.X509Certificate[] arg0, String arg1)
+								throws CertificateException {
+
+						}
+
+						@Override
+						public void checkServerTrusted(java.security.cert.X509Certificate[] arg0, String arg1)
+								throws CertificateException {
+						}
+
+					} };
+
+					sslcontext1.init(null, trustAllCerts, null);
+
+					sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext1, NoopHostnameVerifier.INSTANCE);
+				} else {
+					sslConnectionSocketFactory = SSLConnectionSocketFactory.getSocketFactory();
+				}
+			}
+		} else {
+
+			sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext, new String[] { "TLSv1" }, null,
+					SSLConnectionSocketFactory.getDefaultHostnameVerifier());
+		}
+
+		if (keepAliveStrategy == null) {
+			keepAliveStrategy = new ConnectionKeepAliveStrategy() {
+
+				public long getKeepAliveDuration(HttpResponse response, HttpContext context) {
+					// Honor 'keep-alive' header
+					HeaderElementIterator it = new BasicHeaderElementIterator(
+							response.headerIterator(HTTP.CONN_KEEP_ALIVE));
+					while (it.hasNext()) {
+						HeaderElement he = it.nextElement();
+						String param = he.getName();
+						String value = he.getValue();
+						if (value != null && param.equalsIgnoreCase("timeout")) {
+							try {
+								return Long.parseLong(value) * 1000;
+							} catch (NumberFormatException ignore) {
+							}
+						}
+					}
+					// HttpHost target = (HttpHost)
+					// context.getAttribute(HttpClientContext.HTTP_TARGET_HOST);
+					// if
+					// ("xxxxx".equalsIgnoreCase(target.getHostName()))
+					// {
+					// // Keep alive for 5 seconds only
+					// return 3 * 1000;
+					// } else {
+					// // otherwise keep alive for 30 seconds
+					// return 30 * 1000;
+					// }
+
+					return 30 * 1000;
+				}
+
+			};
+		}
+
+		if (retryHandler == null) {
+			retryHandler = new HttpRequestRetryHandler() {
+
+				public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
+					if (executionCount >= 3) {
+						// Do not retry if over max retry count
+						return false;
+					}
+					if (exception instanceof InterruptedIOException) {
+						// Timeout
+						return false;
+					}
+					if (exception instanceof UnknownHostException) {
+						// Unknown host
+						return false;
+					}
+					if (exception instanceof ConnectTimeoutException) {
+						// Connection refused
+						return false;
+					}
+					if (exception instanceof SSLException) {
+						// SSL handshake exception
+						return false;
+					}
+					HttpClientContext clientContext = HttpClientContext.adapt(context);
+					HttpRequest request = clientContext.getRequest();
+					boolean idempotent = !(request instanceof HttpEntityEnclosingRequest);
+					if (idempotent) {
+						// Retry if the request is considered idempotent
+						return true;
+					}
+					return false;
+				}
+			};
+		}
+
+		connManager = new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
+				.register("http", PlainConnectionSocketFactory.getSocketFactory())
+				.register("https", sslConnectionSocketFactory).build());
+
+		connManager.setMaxTotal(hostConfig.getPoolSize() + 30);
+		connManager.setDefaultMaxPerRoute(5);
+
+		if (hostConfig.getHost() != null) {
+			connManager.setMaxPerRoute(
+					new HttpRoute(hostConfig.getHost(), null,
+							!HttpHost.DEFAULT_SCHEME_NAME.equals(hostConfig.getHost().getSchemeName())),
+					hostConfig.getPoolSize());
+		}
+		// connManager.setValidateAfterInactivity(2000);
+
+		// Create socket configuration
+		SocketConfig socketConfig = SocketConfig.custom().setTcpNoDelay(true).setSoKeepAlive(true).build();
+		connManager.setDefaultSocketConfig(socketConfig);
+
+		// Create connection configuration
+		ConnectionConfig connectionConfig = ConnectionConfig.custom().setMalformedInputAction(CodingErrorAction.IGNORE)
+				.setUnmappableInputAction(CodingErrorAction.IGNORE).setCharset(Consts.UTF_8).build();
+		connManager.setDefaultConnectionConfig(connectionConfig);
+
+		new IdleConnectionMonitorThread(connManager).start();
+
+		if (requestInterceptor == null) {
+			requestInterceptor = new SortHeadersInterceptor(hostConfig);
+		}
+		
+		if (!hostConfig.isMulticlient()) {
+			defaultHttpContext = HttpClientContext.create();
+			httpClient = create();
+		}
+	}
+
+	private CloseableHttpClient create() {
 
 		CookieStore cookieStore = null;
 
@@ -710,9 +596,9 @@ public class Request {
 		}
 
 		HttpClientBuilder builder = HttpClients.custom().setConnectionManager(connManager)
-				.setDefaultRequestConfig(hostConfig.getRequestConfig())
-				.setRetryHandler(retryHandler).setDefaultCookieStore(cookieStore);
-		
+				.setDefaultRequestConfig(hostConfig.getRequestConfig()).setRetryHandler(retryHandler)
+				.setDefaultCookieStore(cookieStore);
+
 		if (isKeepAlive) {
 			builder.setKeepAliveStrategy(keepAliveStrategy);
 		} else {
@@ -732,12 +618,104 @@ public class Request {
 		connManager.shutdown();
 	}
 	
+	public WorkerBuilder worker() {
+		return new WorkerBuilder(this);
+	}
+	
+	public WorkerBuilder get(String url) {
+		return new WorkerBuilder(this, HttpGet.METHOD_NAME, url);
+	}
+	
+	public WorkerBuilder get(String url, Map<String, String> parameters) {
+		return get(url).withParameters(parameters);
+	}
+	
+	public WorkerBuilder post(String url) {
+		return new WorkerBuilder(this, HttpPost.METHOD_NAME, url);
+	}
+	
+	public WorkerBuilder post(String url, Map<String, String> parameters) {
+		return post(url).withParameters(parameters);
+	}
+	
+	public WorkerBuilder post(String url, String stringBody) {
+		return post(url).withStringBody(stringBody);
+	}
+	
+	public WorkerBuilder post(String url, Map<String, String> parameters, String stringBody) {
+		return post(url).withParameters(parameters).withStringBody(stringBody);
+	}
+	
+	public WorkerBuilder post(String url, File fileBody, String fileFieldName) {
+		return post(url, null, fileBody, fileFieldName);
+	}
+	
+	public WorkerBuilder post(String url, Map<String, String> parameters, File fileBody, String fileFieldName) {
+		return post(url, parameters, fileBody, fileFieldName, null);
+	}
+	
+	public WorkerBuilder post(String url, Map<String, String> parameters, File fileBody, String fileFieldName, String filename) {
+		return post(url).withParameters(parameters).withFileBody(fileBody).withFileFieldName(fileFieldName).withFilename(filename);
+	}
+	
+	public WorkerBuilder put(String url) {
+		return new WorkerBuilder(this, HttpPut.METHOD_NAME, url);
+	}
+	
+	public WorkerBuilder put(String url, Map<String, String> parameters) {
+		return put(url).withParameters(parameters);
+	}
+	
+	public WorkerBuilder put(String url, String stringBody) {
+		return put(url).withStringBody(stringBody);
+	}
+	
+	public WorkerBuilder put(String url, Map<String, String> parameters, String stringBody) {
+		return put(url).withParameters(parameters).withStringBody(stringBody);
+	}
+	
+	public WorkerBuilder patch(String url) {
+		return new WorkerBuilder(this, HttpPatch.METHOD_NAME, url);
+	}
+	
+	public WorkerBuilder patch(String url, Map<String, String> parameters) {
+		return patch(url).withParameters(parameters);
+	}
+	
+	public WorkerBuilder patch(String url, String stringBody) {
+		return patch(url).withStringBody(stringBody);
+	}
+	
+	public WorkerBuilder patch(String url, Map<String, String> parameters, String stringBody) {
+		return patch(url).withParameters(parameters).withStringBody(stringBody);
+	}
+	
+	public WorkerBuilder delete(String url) {
+		return new WorkerBuilder(this, HttpDelete.METHOD_NAME, url);
+	}
+	
 	public static class Builder {
+
+		private HostConfig hostConfig;
+
+		private SSLContext sslcontext;
+
+		private Class<? extends CookieStore> cookieStoreClass;
+
+		private ConnectionKeepAliveStrategy keepAliveStrategy;
+
+		private boolean isKeepAlive = true;
 		
+		private boolean isTrustAll = false;
+
+		private HttpRequestRetryHandler retryHandler;
+
+		private HttpRequestInterceptor requestInterceptor;
+
 		Builder() {
-			
+
 		}
-		
+
 		public Builder setHostConfig(HostConfig hostConfig) {
 			this.hostConfig = hostConfig;
 			return this;
@@ -748,8 +726,8 @@ public class Request {
 			return this;
 		}
 
-		public Builder setDefaultCookieStoreClass(Class<? extends CookieStore> defaultCookieStoreClass) {
-			this.defaultCookieStoreClass = defaultCookieStoreClass;
+		public Builder setCookieStoreClass(Class<? extends CookieStore> cookieStoreClass) {
+			this.cookieStoreClass = cookieStoreClass;
 			return this;
 		}
 
@@ -763,8 +741,13 @@ public class Request {
 			return this;
 		}
 
-		public Builder setIsKeepAlive(boolean isKeepAlive) {
-			this.isKeepAlive = isKeepAlive;
+		public Builder withNoKeepAlive() {
+			this.isKeepAlive = false;
+			return this;
+		}
+
+		public Builder withTrustAll() {
+			this.isTrustAll = true;
 			return this;
 		}
 
@@ -774,145 +757,29 @@ public class Request {
 		}
 
 		public Request build() {
+			
+			Args.notNull(hostConfig, "HostConfig");
+			
 			try {
-				init();
-				return this;
+				Request request = new Request();
+				request.setDefaultCookieStoreClass(cookieStoreClass);
+				request.setHostConfig(hostConfig);
+				request.setTrustAll(isTrustAll);
+				request.setKeepAlive(isKeepAlive);
+				request.setKeepAliveStrategy(keepAliveStrategy);
+				request.setRequestInterceptor(requestInterceptor);
+				request.setRetryHandler(retryHandler);
+				request.setSslcontext(sslcontext);
+				
+				request.init();
+				return request;
 			} catch (Exception e) {
 				if (e instanceof RuntimeException)
 					throw (RuntimeException) e;
 				throw new RuntimeException(e);
 			}
 		}
-
-		protected void init() throws KeyManagementException, NoSuchAlgorithmException, KeyStoreException,
-				CertificateException, IOException {
-
-			Args.notNull(hostConfig, "Host config");
-
-			SSLConnectionSocketFactory sslConnectionSocketFactory = null;
-
-			if (sslcontext == null) {
-
-				if (hostConfig.getCA() != null) {
-					// Trust root CA and all self-signed certs
-					SSLContext sslcontext1 = SSLContexts.custom().loadTrustMaterial(hostConfig.getCA(),
-							hostConfig.getCAPassword(), new TrustSelfSignedStrategy()).build();
-
-					// Allow TLSv1 protocol only
-					sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext1, new String[] { "TLSv1" }, null,
-							SSLConnectionSocketFactory.getDefaultHostnameVerifier());
-				} else {
-					sslConnectionSocketFactory = SSLConnectionSocketFactory.getSocketFactory();
-				}
-			} else {
-
-				sslConnectionSocketFactory = new SSLConnectionSocketFactory(sslcontext, new String[] { "TLSv1" }, null,
-						SSLConnectionSocketFactory.getDefaultHostnameVerifier());
-			}
-
-			if (keepAliveStrategy == null) {
-				keepAliveStrategy = new ConnectionKeepAliveStrategy() {
-
-					public long getKeepAliveDuration(HttpResponse response, HttpContext context) {
-						// Honor 'keep-alive' header
-						HeaderElementIterator it = new BasicHeaderElementIterator(
-								response.headerIterator(HTTP.CONN_KEEP_ALIVE));
-						while (it.hasNext()) {
-							HeaderElement he = it.nextElement();
-							String param = he.getName();
-							String value = he.getValue();
-							if (value != null && param.equalsIgnoreCase("timeout")) {
-								try {
-									return Long.parseLong(value) * 1000;
-								} catch (NumberFormatException ignore) {
-								}
-							}
-						}
-						// HttpHost target = (HttpHost)
-						// context.getAttribute(HttpClientContext.HTTP_TARGET_HOST);
-						// if
-						// ("xxxxx".equalsIgnoreCase(target.getHostName()))
-						// {
-						// // Keep alive for 5 seconds only
-						// return 3 * 1000;
-						// } else {
-						// // otherwise keep alive for 30 seconds
-						// return 30 * 1000;
-						// }
-
-						return 30 * 1000;
-					}
-
-				};
-			}
-
-			if (retryHandler == null) {
-				retryHandler = new HttpRequestRetryHandler() {
-
-					public boolean retryRequest(IOException exception, int executionCount, HttpContext context) {
-						if (executionCount >= 3) {
-							// Do not retry if over max retry count
-							return false;
-						}
-						if (exception instanceof InterruptedIOException) {
-							// Timeout
-							return false;
-						}
-						if (exception instanceof UnknownHostException) {
-							// Unknown host
-							return false;
-						}
-						if (exception instanceof ConnectTimeoutException) {
-							// Connection refused
-							return false;
-						}
-						if (exception instanceof SSLException) {
-							// SSL handshake exception
-							return false;
-						}
-						HttpClientContext clientContext = HttpClientContext.adapt(context);
-						HttpRequest request = clientContext.getRequest();
-						boolean idempotent = !(request instanceof HttpEntityEnclosingRequest);
-						if (idempotent) {
-							// Retry if the request is considered idempotent
-							return true;
-						}
-						return false;
-					}
-				};
-			}
-
-			connManager = new PoolingHttpClientConnectionManager(RegistryBuilder.<ConnectionSocketFactory>create()
-					.register("http", PlainConnectionSocketFactory.getSocketFactory())
-					.register("https", sslConnectionSocketFactory).build());
-
-			connManager.setMaxTotal(hostConfig.getPoolSize() + 30);
-			connManager.setDefaultMaxPerRoute(5);
-
-			if (hostConfig.getHost() != null) {
-				connManager.setMaxPerRoute(
-						new HttpRoute(hostConfig.getHost(), null,
-								!HttpHost.DEFAULT_SCHEME_NAME.equals(hostConfig.getHost().getSchemeName())),
-						hostConfig.getPoolSize());
-			}
-			// connManager.setValidateAfterInactivity(2000);
-
-			// Create socket configuration
-			SocketConfig socketConfig = SocketConfig.custom().setTcpNoDelay(true).setSoKeepAlive(true).build();
-			connManager.setDefaultSocketConfig(socketConfig);
-
-			// Create connection configuration
-			ConnectionConfig connectionConfig = ConnectionConfig.custom().setMalformedInputAction(CodingErrorAction.IGNORE)
-					.setUnmappableInputAction(CodingErrorAction.IGNORE).setCharset(Consts.UTF_8).build();
-			connManager.setDefaultConnectionConfig(connectionConfig);
-
-			new IdleConnectionMonitorThread(connManager).start();
-
-			if (!hostConfig.isMulticlient()) {
-				defaultHttpContext = HttpClientContext.create();
-				httpClient = create();
-			}
-		}
 	}
+
 
 }

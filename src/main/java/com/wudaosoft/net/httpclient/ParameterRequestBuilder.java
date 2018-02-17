@@ -1,5 +1,5 @@
 /**
- *    Copyright 2009-2017 Wudao Software Studio(wudaosoft.com)
+ *    Copyright 2009-2018 Wudao Software Studio(wudaosoft.com)
  * 
  *    Licensed under the Apache License, Version 2.0 (the "License");
  *    you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ import org.apache.http.protocol.HTTP;
  * @author Changsoul Wu
  * 
  */
-class AllRequestBuilder {
+class ParameterRequestBuilder {
 
 	public static HttpUriRequest build(RequestBuilder builder) {
 

@@ -25,7 +25,9 @@ import org.apache.http.HeaderIterator;
 import org.apache.http.HttpException;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpRequestInterceptor;
+import org.apache.http.client.methods.HttpPatch;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.protocol.HttpContext;
 
@@ -37,6 +39,7 @@ import org.apache.http.protocol.HttpContext;
  */
 public class SortHeadersInterceptor implements HttpRequestInterceptor {
 
+	private String userAgent = "Wudaosoft Http Tools/1.0";
 	private final HostConfig hostConfig;
 	private final List<String> sortKeyList;
 
@@ -81,20 +84,22 @@ public class SortHeadersInterceptor implements HttpRequestInterceptor {
 		request.addHeader("Pragma", "no-cache");
 
 		if (request.containsHeader("X-Requested-With")) {
-			if (request instanceof HttpUriRequest && HttpPost.METHOD_NAME.equals(((HttpUriRequest) request).getMethod())) {
+			
+			String method = ((HttpUriRequest) request).getMethod();
+			
+			if (HttpPost.METHOD_NAME.equals(method) || HttpPut.METHOD_NAME.equals(method) || HttpPatch.METHOD_NAME.equals(method)) {
 //				request.setHeader("Accept", "application/json, text/javascript, */*; q=0.01");
-//				request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
-				request.addHeader("Origin", hostConfig.getHostUrl());
-			} else {
-				request.setHeader("Accept", "text/javascript, application/javascript, application/ecmascript, application/x-ecmascript, */*; q=0.01");
+				request.setHeader("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8");
 			}
+			
+			request.addHeader("Origin", hostConfig.getHostUrl());
 		}
 
 		if (!request.containsHeader("Referer") && hostConfig.getReferer() != null) {
 			request.addHeader("Referer", hostConfig.getReferer());
 		}
 		
-		request.setHeader("User-Agent", hostConfig.getUserAgent());
+		request.setHeader("User-Agent", hostConfig.getUserAgent() != null ? hostConfig.getUserAgent() : userAgent);
 
 		copyAndSet(sortKeyList, request);
 	}

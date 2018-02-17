@@ -15,36 +15,37 @@
  */
 package com.wudaosoft.net.httpclient;
 
+import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.nio.charset.Charset;
 
-import org.apache.http.Consts;
+import javax.imageio.ImageIO;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.ResponseHandler;
-import org.apache.http.entity.ContentType;
-import org.apache.http.util.EntityUtils;
 
 /**
  * @author Changsoul.Wu
  */
-public class StringResponseHandler implements ResponseHandler<String> {
+public class ImageResponseHandler implements ResponseHandler<BufferedImage> {
 
 	@Override
-	public String handleResponse(HttpResponse response)
-			throws ClientProtocolException, IOException {
+	public BufferedImage handleResponse(HttpResponse response) throws ClientProtocolException, IOException {
 		int status = response.getStatusLine().getStatusCode();
-        if (status >= 200 && status < 300) {
-            HttpEntity entity = response.getEntity();
-			Charset charset = ContentType.getOrDefault(entity).getCharset();
-			if (charset == null) {
-				charset = Consts.UTF_8;
-			}
-            return entity != null ? EntityUtils.toString(entity, charset) : "";
-        } else {
-            throw new ClientProtocolException("Unexpected response status: " + status);
-        }
+
+		if (status != 200) {
+			throw new ClientProtocolException("Unexpected response status: " + status);
+		}
+
+		HttpEntity entity = response.getEntity();
+
+		if (entity == null || !entity.isStreaming()) {
+			throw new ClientProtocolException("Response contains no content");
+		}
+
+		BufferedImage buffImg = ImageIO.read(entity.getContent());
+		return buffImg;
 	}
 
 }

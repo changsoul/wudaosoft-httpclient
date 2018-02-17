@@ -54,7 +54,7 @@ public class HostCofingBuilder {
 	
 	private RequestConfig requestConfig;
 	
-	private HostCofingBuilder () {
+	HostCofingBuilder () {
 		
 	}
 	
@@ -160,12 +160,20 @@ public class HostCofingBuilder {
 		return this;
 	}
 
+	public static HostCofingBuilder create() {
+		return new HostCofingBuilder();
+	}
+	
 	public static HostCofingBuilder create(String hostUrl) {
-		return new HostCofingBuilder().setHttpHost(HttpHost.create(hostUrl));
+		return create().setHttpHost(HttpHost.create(hostUrl));
 	}
 	
 	public static HostCofingBuilder create(HttpHost httpHost) {
-		return new HostCofingBuilder().setHttpHost(httpHost);
+		return create().setHttpHost(httpHost);
+	}
+	
+	public static HostConfig buildNoHost() {
+		return create().build();
 	}
 	
 	public HostConfig build() {

@@ -28,23 +28,25 @@ import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.ResponseHandler;
 import org.apache.http.entity.ContentType;
-import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
+
+import com.wudaosoft.net.xml.XmlObject;
 
 /**
  * @author Changsoul.Wu
  */
-public class XmlResponseHandler implements ResponseHandler<Document> {
+public class XmlResponseHandler implements ResponseHandler<XmlObject> {
 
 	@Override
-	public Document handleResponse(HttpResponse response)
+	public XmlObject handleResponse(HttpResponse response)
 			throws ClientProtocolException, IOException {
 		int status = response.getStatusLine().getStatusCode();
-		HttpEntity entity = response.getEntity();
 		
         if (status < 200 || status >= 300) {
         	throw new ClientProtocolException("Unexpected response status: " + status);
         }
+        
+        HttpEntity entity = response.getEntity();
         
         if (entity == null) {
             throw new ClientProtocolException("Response contains no content");
@@ -65,7 +67,7 @@ public class XmlResponseHandler implements ResponseHandler<Document> {
             if (charset == null) {
                 charset = Consts.UTF_8;
             }
-            return docBuilder.parse(entity.getContent(), charset.name());
+            return XmlObject.fromDocument(docBuilder.parse(entity.getContent(), charset.name()));
         } catch (ParserConfigurationException ex) {
             throw new IllegalStateException(ex);
         } catch (SAXException ex) {

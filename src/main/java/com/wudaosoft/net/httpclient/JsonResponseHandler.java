@@ -16,12 +16,14 @@
 package com.wudaosoft.net.httpclient;
 
 import java.io.IOException;
+import java.nio.charset.Charset;
 
 import org.apache.http.Consts;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.ResponseHandler;
+import org.apache.http.entity.ContentType;
 import org.apache.http.util.EntityUtils;
 
 import com.alibaba.fastjson.JSON;
@@ -40,8 +42,12 @@ public class JsonResponseHandler implements ResponseHandler<JSONObject> {
 		int status = response.getStatusLine().getStatusCode();
         if (status >= 200 && status < 300) {
             HttpEntity entity = response.getEntity();
+            Charset charset = ContentType.getOrDefault(entity).getCharset();
+			if (charset == null) {
+				charset = Consts.UTF_8;
+			}
             try {
-            	return entity != null ? JSON.parseObject(EntityUtils.toString(entity, Consts.UTF_8)) : new JSONObject();
+            	return entity != null ? JSON.parseObject(EntityUtils.toString(entity, charset)) : new JSONObject();
 			} catch (JSONException e) {
 				throw new ClientProtocolException("Json format error: " + e.getMessage());
 			}
