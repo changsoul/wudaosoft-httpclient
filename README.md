@@ -16,20 +16,20 @@ Wudaosoft Httpclient Tools.
 <dependency>
     <groupId>com.wudaosoft</groupId>
     <artifactId>wudaosoft-httpclient</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.1</version>
 </dependency>
 ```
 ## Gradle via JCenter
 
 ``` groovy
-compile 'com.wudaosoft:wudaosoft-httpclient:2.0.0'
+compile 'com.wudaosoft:wudaosoft-httpclient:2.0.1'
 ```
 ### *License*
 
 wudaosoft-httpclient is released under the [Apache 2.0 license](LICENSE).
 
 ```
-Copyright 2009-2017 Wudao Software Studio
+Copyright 2009-2018 Wudao Software Studio
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

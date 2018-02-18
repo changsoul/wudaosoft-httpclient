@@ -28,7 +28,7 @@ import org.apache.http.util.Args;
  * @author changsoul.wu
  *
  */
-public class HostCofingBuilder {
+public class HostConfigBuilder {
 	
 	private int connectionRequestTimeout = 500;
 	
@@ -38,7 +38,7 @@ public class HostCofingBuilder {
 	
 	private int poolSize = 70;
 	
-	public boolean multiclient = false;
+	private boolean multiclient = false;
 	
 	private String userAgent = "Wudaosoft Http Tools/1.0";
 	
@@ -54,14 +54,14 @@ public class HostCofingBuilder {
 	
 	private RequestConfig requestConfig;
 	
-	HostCofingBuilder () {
+	HostConfigBuilder () {
 		
 	}
 	
 	/**
 	 * @param connectionRequestTimeout the connectionRequestTimeout to set
 	 */
-	public HostCofingBuilder setConnectionRequestTimeout(int connectionRequestTimeout) {
+	public HostConfigBuilder setConnectionRequestTimeout(int connectionRequestTimeout) {
 		this.connectionRequestTimeout = connectionRequestTimeout;
 		return this;
 	}
@@ -69,7 +69,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param connectTimeout the connectTimeout to set
 	 */
-	public HostCofingBuilder setConnectTimeout(int connectTimeout) {
+	public HostConfigBuilder setConnectTimeout(int connectTimeout) {
 		this.connectTimeout = connectTimeout;
 		return this;
 	}
@@ -77,7 +77,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param socketTimeout the socketTimeout to set
 	 */
-	public HostCofingBuilder setSocketTimeout(int socketTimeout) {
+	public HostConfigBuilder setSocketTimeout(int socketTimeout) {
 		this.socketTimeout = socketTimeout;
 		return this;
 	}
@@ -85,7 +85,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param poolSize the poolSize to set
 	 */
-	public HostCofingBuilder setPoolSize(int poolSize) {
+	public HostConfigBuilder setPoolSize(int poolSize) {
 		this.poolSize = poolSize;
 		return this;
 	}
@@ -93,7 +93,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param isMulticlient the isMulticlient to set
 	 */
-	public HostCofingBuilder setIsMulticlient(boolean isMulticlient) {
+	public HostConfigBuilder setIsMulticlient(boolean isMulticlient) {
 		this.multiclient = isMulticlient;
 		return this;
 	}
@@ -101,7 +101,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param userAgent the userAgent to set
 	 */
-	public HostCofingBuilder setUserAgent(String userAgent) {
+	public HostConfigBuilder setUserAgent(String userAgent) {
 		this.userAgent = userAgent;
 		return this;
 	}
@@ -109,7 +109,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param charset the charset to set
 	 */
-	public HostCofingBuilder setCharset(Charset charset) {
+	public HostConfigBuilder setCharset(Charset charset) {
 		this.charset = charset;
 		return this;
 	}
@@ -117,7 +117,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param ca the ca to set
 	 */
-	public HostCofingBuilder setCa(URL ca) {
+	public HostConfigBuilder setCa(URL ca) {
 		this.ca = ca;
 		return this;
 	}
@@ -125,7 +125,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param caPassword the caPassword to set
 	 */
-	public HostCofingBuilder setCaPassword(char[] caPassword) {
+	public HostConfigBuilder setCaPassword(char[] caPassword) {
 		this.caPassword = caPassword;
 		return this;
 	}
@@ -133,7 +133,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param httpHost the httpHost to set
 	 */
-	public HostCofingBuilder setHttpHost(HttpHost httpHost) {
+	public HostConfigBuilder setHttpHost(HttpHost httpHost) {
 		Args.notNull(httpHost, "httpHost");
 		
 		this.httpHost = httpHost;
@@ -147,7 +147,7 @@ public class HostCofingBuilder {
 	/**
 	 * @param hostUrl the hostUrl to set
 	 */
-	public HostCofingBuilder setHostUrl(String hostUrl) {
+	public HostConfigBuilder setHostUrl(String hostUrl) {
 		this.hostUrl = hostUrl;
 		return this;
 	}
@@ -155,20 +155,20 @@ public class HostCofingBuilder {
 	/**
 	 * @param requestConfig the requestConfig to set
 	 */
-	public HostCofingBuilder setRequestConfig(RequestConfig requestConfig) {
+	public HostConfigBuilder setRequestConfig(RequestConfig requestConfig) {
 		this.requestConfig = requestConfig;
 		return this;
 	}
 
-	public static HostCofingBuilder create() {
-		return new HostCofingBuilder();
+	public static HostConfigBuilder create() {
+		return new HostConfigBuilder();
 	}
 	
-	public static HostCofingBuilder create(String hostUrl) {
+	public static HostConfigBuilder create(String hostUrl) {
 		return create().setHttpHost(HttpHost.create(hostUrl));
 	}
 	
-	public static HostCofingBuilder create(HttpHost httpHost) {
+	public static HostConfigBuilder create(HttpHost httpHost) {
 		return create().setHttpHost(httpHost);
 	}
 	
@@ -187,7 +187,7 @@ public class HostCofingBuilder {
 				.setConnectionRequestTimeout(connectionRequestTimeout).setConnectTimeout(connectTimeout).setSocketTimeout(socketTimeout)
 				.build();
 		
-		SimpleHostCofing hostCofing = new SimpleHostCofing(requestConfig);
+		SimpleHostConfig hostCofing = new SimpleHostConfig(requestConfig);
 		hostCofing.setCA(ca);
 		hostCofing.setCaPassword(caPassword);
 		hostCofing.setCharset(charset);

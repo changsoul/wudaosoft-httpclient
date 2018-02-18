@@ -25,11 +25,11 @@ import org.apache.http.client.config.RequestConfig;
  * @author changsoul.wu
  *
  */
-public class SimpleHostCofing implements HostConfig{
+public class SimpleHostConfig implements HostConfig{
 	
 	private int poolSize = 70;
 	
-	public boolean multiclient = false;
+	private boolean multiclient = false;
 	
 	private String userAgent = "Wudaosoft Http Tools/1.0";
 	
@@ -48,7 +48,7 @@ public class SimpleHostCofing implements HostConfig{
 	private RequestConfig requestConfig;
 	
 	
-	public SimpleHostCofing(RequestConfig requestConfig) {
+	public SimpleHostConfig(RequestConfig requestConfig) {
 		super();
 		this.requestConfig = requestConfig;
 	}
