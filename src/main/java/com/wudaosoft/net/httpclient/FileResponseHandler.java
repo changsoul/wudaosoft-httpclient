@@ -20,6 +20,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.ClientProtocolException;
@@ -32,11 +33,15 @@ import org.apache.http.util.Args;
 public class FileResponseHandler implements ResponseHandler<File> {
 
 	private File file;
+	private File dir;
 
 	public FileResponseHandler(final File file) {
-		Args.notNull(file, "file");
-		Args.check(file.canWrite(), "file must be writeable");
-		this.file = file;
+		this.file = Args.notNull(file, "file");
+	}
+	
+	public FileResponseHandler(final String dir) {
+		this.dir = new File(Args.notBlank(dir, "dir"));
+		Args.check(this.dir.isDirectory(), "dir must be a directory");
 	}
 
 	@Override
@@ -52,21 +57,35 @@ public class FileResponseHandler implements ResponseHandler<File> {
 		if (entity == null || !entity.isStreaming()) {
 			throw new ClientProtocolException("Response contains no content");
 		}
+		
+		File tempFile = null;
+		
+		if (this.file != null) {
+			tempFile = this.file;
+		} else if (this.dir != null) {
+			Header contentDisposition = response.getLastHeader("Content-disposition");
+			String filename = contentDisposition.getValue().split(";")[1].split("=")[1].replace("\"", "");
+			tempFile = new File(this.dir, filename);
+		}
+		
+		Args.notNull(tempFile, "file");
+		Args.check(tempFile.canWrite(), "file must be writeable");
 
 		InputStream inputStream = entity.getContent();
-		FileOutputStream outputStream = new FileOutputStream(file);
+		FileOutputStream outputStream = new FileOutputStream(tempFile);
 
 		try {
 			
-			byte[] buff = new byte[2048];
+			byte[] buff = new byte[4096];
 			int size = -1;
 			while ((size = inputStream.read(buff)) != -1) {
 
 				outputStream.write(buff, 0, size);
 			}
 
-			return file;
+			outputStream.flush();
 			
+			return tempFile;
 		} finally {
 			try {
 				outputStream.close();

@@ -42,6 +42,8 @@ public class HostConfigBuilder {
 	
 	private String userAgent = "Wudaosoft Http Tools/1.0";
 	
+	private String referer;
+	
 	private Charset charset;
 	
 	private URL ca;
@@ -107,6 +109,14 @@ public class HostConfigBuilder {
 	}
 
 	/**
+	 * @param referer the referer to set
+	 */
+	public HostConfigBuilder setReferer(String referer) {
+		this.referer = referer;
+		return this;
+	}
+
+	/**
 	 * @param charset the charset to set
 	 */
 	public HostConfigBuilder setCharset(Charset charset) {
@@ -138,7 +148,7 @@ public class HostConfigBuilder {
 		
 		this.httpHost = httpHost;
 		
-		if(this.hostUrl == null) {
+		if (this.hostUrl == null) {
 			this.hostUrl = httpHost.toURI();
 		}
 		return this;
@@ -177,7 +187,6 @@ public class HostConfigBuilder {
 	}
 	
 	public HostConfig build() {
-		//Args.notNull(httpHost, "httpHost");
 		
 		requestConfig = RequestConfig.custom()
 				.setExpectContinueEnabled(false)
@@ -195,7 +204,7 @@ public class HostConfigBuilder {
 		hostCofing.setHostUrl(hostUrl);
 		hostCofing.setIsMulticlient(multiclient);
 		hostCofing.setPoolSize(poolSize);
-		//hostCofing.setReferer(hostUrl);
+		hostCofing.setReferer(referer);
 		hostCofing.setUserAgent(userAgent);
 		
 		return hostCofing;

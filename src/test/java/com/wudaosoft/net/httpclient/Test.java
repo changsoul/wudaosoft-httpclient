@@ -15,13 +15,11 @@
  */
 package com.wudaosoft.net.httpclient;
 
-import javax.xml.transform.sax.SAXSource;
-
 import org.apache.http.Consts;
 import org.apache.http.client.utils.URIBuilder;
 
 import com.alibaba.fastjson.JSONObject;
-import com.wudaosoft.net.utils.XmlReader;
+import com.wudaosoft.net.xml.XmlObject;
 
 /** 
  * @author Changsoul Wu
@@ -29,7 +27,7 @@ import com.wudaosoft.net.utils.XmlReader;
  */
 public class Test {
 	
-	private HostConfig config = HostCofingBuilder.create("http://58.248.169.117:8086").build();
+	private HostConfig config = HostConfigBuilder.create("http://58.248.169.117:8086").setSocketTimeout(3000).setConnectTimeout(2000).build();
 	
 	private Request request = Request.createDefault(config);
 
@@ -42,14 +40,14 @@ public class Test {
 	
 	public void testXml() throws Exception {
 		
-		SAXSource obj = request.get("/mobile/list.xml?id=1").sax();
+		XmlObject obj = request.get("/mobile/list.xml?id=1").xml();
 		
-		System.out.println(XmlReader.readFromSource(String.class, obj));
+		System.out.println(obj);
 	}
 	
 	public void testSSL() throws Exception {
 		
-		String obj = request.get("https://www.baidu.com/").withAnyHost().execute();
+		String obj = request.get("https://www.baidu.com/").execute();
 		
 		System.out.println(obj);
 	}
@@ -59,7 +57,7 @@ public class Test {
 		Test test = new Test();
 		test.test();
 		test.testSSL();
-		//test.testXml();
+		test.testXml();
 		
 		System.out.println(new URIBuilder("https://www.baidu.com/?pp=中文").setCharset(Consts.UTF_8).build());
 		System.out.println(new URIBuilder("https://www.baidu.com/?pp=jkdafow8ewqr").setCharset(Consts.UTF_8).addParameter("ccs", "中文").addParameter("ooo", "英文").build());

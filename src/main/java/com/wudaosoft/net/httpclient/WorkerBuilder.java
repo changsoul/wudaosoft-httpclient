@@ -17,11 +17,14 @@ package com.wudaosoft.net.httpclient;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Map;
 
 import javax.xml.transform.sax.SAXSource;
 
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.util.Args;
 
 import com.alibaba.fastjson.JSONObject;
 import com.wudaosoft.net.utils.XmlReader;
@@ -41,8 +44,10 @@ public class WorkerBuilder {
     private String fileFieldName = "upfile";
     private String filename;
     private File fileBody;
+    private InputStream streamBody;
     private boolean isAjax = false;
     private boolean isAnyHost = false;
+    private int readTimeout = -1;
     
     private Request request;
     
@@ -120,91 +125,120 @@ public class WorkerBuilder {
 		this.fileBody = fileBody;
 		return this;
 	}
+	
+	/**
+	 * @param streamBody the streamBody to set
+	 */
+	public WorkerBuilder withStreamBody(InputStream streamBody) {
+		this.streamBody = streamBody;
+		return this;
+	}
 
 	/**
-	 * @param isAjax the isAjax to set
 	 */
 	public WorkerBuilder withAjax() {
 		this.isAjax = true;
 		return this;
 	}
-
+	
+//	public WorkerBuilder asFullUrl() {
+//		this.isAnyHost = true;
+//		return this;
+//	}
+	
 	/**
-	 * @param isAnyHost the isAnyHost to set
+	 * 读取返回数据中两个相邻报文之间的间隔超时时间，不是读取全部数据流的超时时间。单位：毫秒
+	 * 设为0将无限等待
+	 * 
+	 * @param readTimeout the readTimeout to set
 	 */
-	public WorkerBuilder withAnyHost() {
-		this.isAnyHost = true;
+	public WorkerBuilder withReadTimeout(int readTimeout) {
+		this.readTimeout = Args.notNegative(readTimeout, "readTimeout");
 		return this;
 	}
 
 	/**
 	 * @return the method
 	 */
-	public String getMethod() {
+	String getMethod() {
 		return method;
 	}
 
 	/**
 	 * @return the url
 	 */
-	public String getUrl() {
+	String getUrl() {
 		return url;
 	}
 
 	/**
 	 * @return the context
 	 */
-	public HttpClientContext getContext() {
+	HttpClientContext getContext() {
 		return context;
 	}
 
 	/**
 	 * @return the parameters
 	 */
-	public Map<String, String> getParameters() {
+	Map<String, String> getParameters() {
 		return parameters;
 	}
 
 	/**
 	 * @return the stringBody
 	 */
-	public String getStringBody() {
+	String getStringBody() {
 		return stringBody;
 	}
 
 	/**
 	 * @return the fileFieldName
 	 */
-	public String getFileFieldName() {
+	String getFileFieldName() {
 		return fileFieldName;
 	}
 
 	/**
 	 * @return the filename
 	 */
-	public String getFilename() {
+	String getFilename() {
 		return filename;
 	}
 
 	/**
 	 * @return the fileBody
 	 */
-	public File getFileBody() {
+	File getFileBody() {
 		return fileBody;
+	}
+
+	/**
+	 * @return the streamBody
+	 */
+	InputStream getStreamBody() {
+		return streamBody;
 	}
 
 	/**
 	 * @return the isAjax
 	 */
-	public boolean isAjax() {
+	boolean isAjax() {
 		return isAjax;
 	}
 
 	/**
 	 * @return the isAnyHost
 	 */
-	public boolean isAnyHost() {
+	boolean isAnyHost() {
 		return isAnyHost;
+	}
+	
+	/**
+	 * @return the readTimeout
+	 */
+	int getReadTimeout() {
+		return readTimeout;
 	}
 
 	
@@ -242,12 +276,21 @@ public class WorkerBuilder {
 	}
 	
 	/**
-	 * @param file
-	 * @return File
+	 * @param file 待写入的文件
+	 * @return File 写入完成后的文件
 	 * @throws Exception
 	 */
 	public File file(final File file) throws Exception {
 		return request.doRequest(this, new FileResponseHandler(file));
+	}
+	
+	/**
+	 * @param dir 存放下载文件的文件夹路径，且文件夹必需存在。
+	 * @return File 下载完成后的文件
+	 * @throws Exception
+	 */
+	public File file(final String dir) throws Exception {
+		return request.doRequest(this, new FileResponseHandler(dir));
 	}
 	
 	/**
@@ -259,7 +302,15 @@ public class WorkerBuilder {
 	}
 	
 	/**
-	 * @param clazz<T>
+	 * @param out The OutputStream to write
+	 * @throws Exception
+	 */
+	public void stream(OutputStream out) throws Exception {
+		request.doRequest(this, new OutputStreamResponseHandler(out));
+	}
+	
+	/**
+	 * @param clazz
 	 * @return JavaObject
 	 * @throws Exception
 	 */
@@ -268,7 +319,7 @@ public class WorkerBuilder {
 	}
 	
 	/**
-	 * @param clazz<T>
+	 * @param clazz
 	 * @return JavaObject
 	 * @throws Exception
 	 */

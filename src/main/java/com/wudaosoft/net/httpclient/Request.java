@@ -17,7 +17,9 @@ package com.wudaosoft.net.httpclient;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InterruptedIOException;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.nio.charset.Charset;
 import java.nio.charset.CodingErrorAction;
@@ -47,6 +49,7 @@ import org.apache.http.NameValuePair;
 import org.apache.http.client.CookieStore;
 import org.apache.http.client.HttpRequestRetryHandler;
 import org.apache.http.client.ResponseHandler;
+import org.apache.http.client.config.RequestConfig;
 import org.apache.http.client.entity.UrlEncodedFormEntity;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
@@ -56,6 +59,7 @@ import org.apache.http.client.methods.HttpPut;
 import org.apache.http.client.methods.HttpUriRequest;
 import org.apache.http.client.methods.RequestBuilder;
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.config.ConnectionConfig;
 import org.apache.http.config.RegistryBuilder;
 import org.apache.http.config.SocketConfig;
@@ -255,8 +259,9 @@ public class Request {
 		Args.notEmpty(url, "WorkerBuilder.getUrl()");
 		Args.notNull(responseHandler, "responseHandler");
 		
-		if(!workerBuilder.isAnyHost()) {
-			notFullUrl(url);
+//		if(!workerBuilder.isAnyHost()) {
+		if(!isFullUrl(url)) {
+//			notFullUrl(url);
 			Args.notEmpty(hostConfig.getHostUrl(), "HostConfig.getHostUrl()");
 			url = hostConfig.getHostUrl() + url;
 		}
@@ -264,6 +269,7 @@ public class Request {
 		Charset charset = hostConfig.getCharset() == null ? Consts.UTF_8 : hostConfig.getCharset();
 		String stringBody = workerBuilder.getStringBody();
 		File fileBody = workerBuilder.getFileBody();
+		InputStream streamBody = workerBuilder.getStreamBody();
 		Map<String, String> params = workerBuilder.getParameters();
 
 		String contentType = null;
@@ -274,7 +280,8 @@ public class Request {
 				|| responseHandler instanceof XmlResponseHandler) {
 			contentType = MediaType.APPLICATION_XML_VALUE;
 		} else if (responseHandler instanceof FileResponseHandler
-				|| responseHandler instanceof ImageResponseHandler) {
+				|| responseHandler instanceof ImageResponseHandler 
+				|| responseHandler instanceof OutputStreamResponseHandler) {
 			contentType = MediaType.ALL_VALUE;
 		} else {
 			contentType = MediaType.TEXT_PLAIN_VALUE;
@@ -288,28 +295,40 @@ public class Request {
 			reqEntity.setContentType(contentType + ";charset=" + charset.name());
 			requestBuilder.setEntity(reqEntity);
 			
-		} else if (fileBody != null) {
+		} else if (fileBody != null || streamBody != null) {
 			
 			Args.check(fileBody.isFile(), "fileBody must be a file");
 			Args.check(fileBody.canRead(), "fileBody must be readable");
 			
 			String filename = workerBuilder.getFilename();
-			if (filename == null)
+			if (filename == null && fileBody != null && streamBody == null)
 				filename = fileBody.getName();
+			
+			Args.notEmpty(filename, "filename");
 
-			FileBody bin = new FileBody(fileBody, ContentType.APPLICATION_OCTET_STREAM, filename);
+			MultipartEntityBuilder reqEntity = MultipartEntityBuilder.create().setLaxMode();
 
-			MultipartEntityBuilder reqEntity = MultipartEntityBuilder.create();
-
-			reqEntity.addPart(workerBuilder.getFileFieldName(), bin);
+			if(fileBody != null) {
+				FileBody bin = new FileBody(fileBody, ContentType.APPLICATION_OCTET_STREAM, streamBody != null ? fileBody.getName() : filename);
+				reqEntity.addPart(workerBuilder.getFileFieldName(), bin);
+			}
+			
+			if(streamBody != null)
+				reqEntity.addBinaryBody(workerBuilder.getFileFieldName(), streamBody, ContentType.APPLICATION_OCTET_STREAM, filename);
 			
 			buildParameters(reqEntity, params, charset);
 			
 			requestBuilder.setEntity(reqEntity.build());
 		}
 		
-		if (fileBody == null) {
+		if (fileBody == null && streamBody == null) {
 			buildParameters(requestBuilder, params);
+		}
+		
+		if (workerBuilder.getReadTimeout() > -1) {
+			
+			requestBuilder.setConfig(RequestConfig.copy(this.hostConfig.getRequestConfig())
+					.setSocketTimeout(workerBuilder.getReadTimeout()).build());
 		}
 
 		HttpUriRequest httpRequest = ParameterRequestBuilder.build(requestBuilder);
@@ -339,10 +358,31 @@ public class Request {
 	public void setAcceptHeader(HttpRequest resquest, String accept) {
 		resquest.addHeader("Accept", accept);
 	}
+	
+	public static String buildReqUrl(String reqUrl, Map<String, String> params) throws URISyntaxException {
+		return new URIBuilder(reqUrl).setParameters(buildUrlNameValuePair(params)).build().toString();
+	}
 
 	/**
 	 * 
 	 * @param params
+	 * @return
+	 */
+	public static List<NameValuePair> buildUrlNameValuePair(Map<String, String> params) {
+		Args.notNull(params, "params");
+		
+		List<NameValuePair> parameters = new ArrayList<NameValuePair>(params.size());
+		
+		for (Map.Entry<String, String> entry : params.entrySet()) {
+			parameters.add(new BasicNameValuePair(entry.getKey(), entry.getValue()));
+		}
+		
+		return parameters;
+	}
+	
+	/**
+	 * @param params
+	 * @param charset
 	 * @return
 	 */
 	public UrlEncodedFormEntity buildUrlEncodedFormEntity(Map<String, String> params, Charset charset) {
@@ -358,16 +398,15 @@ public class Request {
 	}
 
 	/**
-	 * 
-	 * @param requestBuilder
+	 * @param reqEntity
 	 * @param params
-	 * @return
+	 * @param charset
 	 */
 	public void buildParameters(MultipartEntityBuilder reqEntity, Map<String, String> params, Charset charset) {
 		
 		if (params != null && !params.isEmpty()) {
 			
-			ContentType contentType = ContentType.create(MediaType.TEXT_PLAIN_VALUE, charset);
+			ContentType contentType = ContentType.TEXT_PLAIN.withCharset(charset);
 			
 			for (Map.Entry<String, String> entry : params.entrySet()) {
 				
@@ -378,7 +417,7 @@ public class Request {
 
 				if (value == null)
 					value = "";
-				
+
 				reqEntity.addPart(entry.getKey(), new StringBody(value, contentType));
 			}
 		}
@@ -401,14 +440,19 @@ public class Request {
 
 				if (value == null)
 					value = "";
+				
 				requestBuilder.addParameter(entry.getKey(), value);
 			}
 		}
 	}
 
-	private void notFullUrl(final String suffixUrl) {
-		Args.check(suffixUrl.indexOf("://") == -1, "suffixUrl must be not contains \"://\".");
+	private boolean isFullUrl(final String suffixUrl) {
+		return suffixUrl.indexOf("://") != -1;
 	}
+	
+//	private void notFullUrl(final String suffixUrl) {
+//		Args.check(!isFullUrl(suffixUrl), "suffixUrl must be not contains \"://\".");
+//	}
 
 	/**
 	 * @return
@@ -564,12 +608,12 @@ public class Request {
 		// connManager.setValidateAfterInactivity(2000);
 
 		// Create socket configuration
-		SocketConfig socketConfig = SocketConfig.custom().setTcpNoDelay(true).setSoKeepAlive(true).build();
+		SocketConfig socketConfig = SocketConfig.custom().setTcpNoDelay(true).setSoKeepAlive(isKeepAlive).build();
 		connManager.setDefaultSocketConfig(socketConfig);
 
 		// Create connection configuration
 		ConnectionConfig connectionConfig = ConnectionConfig.custom().setMalformedInputAction(CodingErrorAction.IGNORE)
-				.setUnmappableInputAction(CodingErrorAction.IGNORE).setCharset(Consts.UTF_8).build();
+				.setUnmappableInputAction(CodingErrorAction.IGNORE).setCharset(hostConfig.getCharset() == null ? Consts.UTF_8 : hostConfig.getCharset()).build();
 		connManager.setDefaultConnectionConfig(connectionConfig);
 
 		new IdleConnectionMonitorThread(connManager).start();
@@ -656,6 +700,14 @@ public class Request {
 	
 	public WorkerBuilder post(String url, Map<String, String> parameters, File fileBody, String fileFieldName, String filename) {
 		return post(url).withParameters(parameters).withFileBody(fileBody).withFileFieldName(fileFieldName).withFilename(filename);
+	}
+	
+	public WorkerBuilder post(String url, InputStream streamBody, String fileFieldName, String filename) {
+		return post(url, null, streamBody, fileFieldName, filename);
+	}
+	
+	public WorkerBuilder post(String url, Map<String, String> parameters, InputStream streamBody, String fileFieldName, String filename) {
+		return post(url).withParameters(parameters).withStreamBody(streamBody).withFileFieldName(fileFieldName).withFilename(filename);
 	}
 	
 	public WorkerBuilder put(String url) {
