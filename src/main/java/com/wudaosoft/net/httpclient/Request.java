@@ -283,6 +283,8 @@ public class Request {
 				|| responseHandler instanceof ImageResponseHandler 
 				|| responseHandler instanceof OutputStreamResponseHandler) {
 			contentType = MediaType.ALL_VALUE;
+		} else if (responseHandler instanceof NoResultResponseHandler){
+			contentType = ((NoResultResponseHandler)responseHandler).getContentType().getMimeType();
 		} else {
 			contentType = MediaType.TEXT_PLAIN_VALUE;
 		}
@@ -297,9 +299,6 @@ public class Request {
 			
 		} else if (fileBody != null || streamBody != null) {
 			
-			Args.check(fileBody.isFile(), "fileBody must be a file");
-			Args.check(fileBody.canRead(), "fileBody must be readable");
-			
 			String filename = workerBuilder.getFilename();
 			if (filename == null && fileBody != null && streamBody == null)
 				filename = fileBody.getName();
@@ -309,6 +308,9 @@ public class Request {
 			MultipartEntityBuilder reqEntity = MultipartEntityBuilder.create().setLaxMode();
 
 			if(fileBody != null) {
+				Args.check(fileBody.isFile(), "fileBody must be a file");
+				Args.check(fileBody.canRead(), "fileBody must be readable");
+				
 				FileBody bin = new FileBody(fileBody, ContentType.APPLICATION_OCTET_STREAM, streamBody != null ? fileBody.getName() : filename);
 				reqEntity.addPart(workerBuilder.getFileFieldName(), bin);
 			}
@@ -596,8 +598,8 @@ public class Request {
 				.register("http", PlainConnectionSocketFactory.getSocketFactory())
 				.register("https", sslConnectionSocketFactory).build());
 
-		connManager.setMaxTotal(hostConfig.getPoolSize() + 30);
-		connManager.setDefaultMaxPerRoute(5);
+		connManager.setMaxTotal(hostConfig.getPoolSize() + 50);
+		connManager.setDefaultMaxPerRoute(10);
 
 		if (hostConfig.getHost() != null) {
 			connManager.setMaxPerRoute(

@@ -24,6 +24,7 @@ import java.util.Map;
 import javax.xml.transform.sax.SAXSource;
 
 import org.apache.http.client.protocol.HttpClientContext;
+import org.apache.http.entity.ContentType;
 import org.apache.http.util.Args;
 
 import com.alibaba.fastjson.JSONObject;
@@ -273,6 +274,14 @@ public class WorkerBuilder {
 	 */
 	public String execute() throws Exception {
 		return request.doRequest(this, new StringResponseHandler());
+	}
+	
+	public int noResult() throws Exception {
+		return request.doRequest(this, new NoResultResponseHandler(ContentType.APPLICATION_JSON)).intValue();
+	}
+	
+	public int noResult(ContentType contentType) throws Exception {
+		return request.doRequest(this, new NoResultResponseHandler(contentType)).intValue();
 	}
 	
 	/**
