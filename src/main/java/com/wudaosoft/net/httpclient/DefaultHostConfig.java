@@ -112,5 +112,13 @@ public abstract class DefaultHostConfig implements HostConfig {
 		
 		return 70;
 	}
+
+	/* (non-Javadoc)
+	 * @see com.wudaosoft.net.httpclient.HostConfig#getHostCount()
+	 */
+	@Override
+	public int getHostCount() {
+		return 0;
+	}
 	
 }

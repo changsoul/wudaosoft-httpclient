@@ -30,10 +30,6 @@ public class NoResultResponseHandler implements ResponseHandler<Integer> {
 	public ContentType getContentType() {
 		return contentType;
 	}
-	
-	public void setContentType(ContentType contentType) {
-		this.contentType = contentType;
-	}
 
 	/* (non-Javadoc)
 	 * @see org.apache.http.client.ResponseHandler#handleResponse(org.apache.http.HttpResponse)

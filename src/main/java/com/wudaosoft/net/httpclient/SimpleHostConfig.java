@@ -27,7 +27,7 @@ import org.apache.http.client.config.RequestConfig;
  */
 public class SimpleHostConfig implements HostConfig{
 	
-	private int poolSize = 70;
+	private int poolSize = 150;
 	
 	private boolean multiclient = false;
 	
@@ -44,6 +44,8 @@ public class SimpleHostConfig implements HostConfig{
 	private HttpHost httpHost;
 	
 	private String hostUrl;
+	
+	private int hostCount;
 	
 	private RequestConfig requestConfig;
 	
@@ -132,6 +134,14 @@ public class SimpleHostConfig implements HostConfig{
 
 	public void setHostUrl(String hostUrl) {
 		this.hostUrl = hostUrl;
+	}
+
+	public int getHostCount() {
+		return hostCount;
+	}
+
+	public void setHostCount(int hostCount) {
+		this.hostCount = hostCount;
 	}
 
 	@Override

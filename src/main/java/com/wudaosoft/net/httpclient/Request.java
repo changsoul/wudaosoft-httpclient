@@ -300,10 +300,6 @@ public class Request {
 		} else if (fileBody != null || streamBody != null) {
 			
 			String filename = workerBuilder.getFilename();
-			if (filename == null && fileBody != null && streamBody == null)
-				filename = fileBody.getName();
-			
-			Args.notEmpty(filename, "filename");
 
 			MultipartEntityBuilder reqEntity = MultipartEntityBuilder.create().setLaxMode();
 
@@ -311,9 +307,14 @@ public class Request {
 				Args.check(fileBody.isFile(), "fileBody must be a file");
 				Args.check(fileBody.canRead(), "fileBody must be readable");
 				
+				if (filename == null && streamBody == null)
+					filename = fileBody.getName();
+				
 				FileBody bin = new FileBody(fileBody, ContentType.APPLICATION_OCTET_STREAM, streamBody != null ? fileBody.getName() : filename);
 				reqEntity.addPart(workerBuilder.getFileFieldName(), bin);
 			}
+			
+			Args.notEmpty(filename, "filename");
 			
 			if(streamBody != null)
 				reqEntity.addBinaryBody(workerBuilder.getFileFieldName(), streamBody, ContentType.APPLICATION_OCTET_STREAM, filename);
@@ -598,15 +599,24 @@ public class Request {
 				.register("http", PlainConnectionSocketFactory.getSocketFactory())
 				.register("https", sslConnectionSocketFactory).build());
 
-		connManager.setMaxTotal(hostConfig.getPoolSize() + 50);
-		connManager.setDefaultMaxPerRoute(10);
+		
 
 		if (hostConfig.getHost() != null) {
+			
+			connManager.setMaxTotal(hostConfig.getPoolSize() + 60);
+			
 			connManager.setMaxPerRoute(
 					new HttpRoute(hostConfig.getHost(), null,
 							!HttpHost.DEFAULT_SCHEME_NAME.equals(hostConfig.getHost().getSchemeName())),
 					hostConfig.getPoolSize());
+			
+			connManager.setDefaultMaxPerRoute(20);
+		} else {
+			connManager.setMaxTotal(hostConfig.getPoolSize());
+			int hostCount = hostConfig.getHostCount() == 0 ? 10 : hostConfig.getHostCount();
+			connManager.setDefaultMaxPerRoute(hostConfig.getPoolSize() / hostCount);
 		}
+		
 		// connManager.setValidateAfterInactivity(2000);
 
 		// Create socket configuration

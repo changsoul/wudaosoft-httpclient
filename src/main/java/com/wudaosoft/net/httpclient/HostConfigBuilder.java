@@ -36,7 +36,7 @@ public class HostConfigBuilder {
 	
 	private int socketTimeout = 10000;
 	
-	private int poolSize = 70;
+	private int poolSize = 150;
 	
 	private boolean multiclient = false;
 	
@@ -53,6 +53,8 @@ public class HostConfigBuilder {
 	private HttpHost httpHost;
 	
 	private String hostUrl;
+	
+	private int hostCount;
 	
 	private RequestConfig requestConfig;
 	
@@ -163,6 +165,14 @@ public class HostConfigBuilder {
 	}
 
 	/**
+	 * @param hostCount the hostCount to set
+	 */
+	public HostConfigBuilder setHostCount(int hostCount) {
+		this.hostCount = hostCount;
+		return this;
+	}
+
+	/**
 	 * @param requestConfig the requestConfig to set
 	 */
 	public HostConfigBuilder setRequestConfig(RequestConfig requestConfig) {
@@ -202,6 +212,7 @@ public class HostConfigBuilder {
 		hostCofing.setCharset(charset);
 		hostCofing.setHost(httpHost);
 		hostCofing.setHostUrl(hostUrl);
+		hostCofing.setHostCount(hostCount);
 		hostCofing.setIsMulticlient(multiclient);
 		hostCofing.setPoolSize(poolSize);
 		hostCofing.setReferer(referer);

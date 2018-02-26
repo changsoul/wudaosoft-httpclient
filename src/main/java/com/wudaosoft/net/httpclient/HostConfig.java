@@ -46,5 +46,7 @@ public interface HostConfig {
 	boolean isMulticlient();
 	
 	int getPoolSize();
+	
+	int getHostCount();
 
 }
